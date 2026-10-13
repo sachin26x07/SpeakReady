@@ -1,0 +1,11 @@
+[33mcommit a0776a88c985823c42de65b62dfb2782bb070f19[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: sachin <sachin3103x5@gmail.com>
+Date:   Wed Oct 14 01:21:13 2026 +0530
+
+    Add .gitignore files for frontend and backend, excluding environment and build files
+
+[33mcommit 03d15d824c652c823f597d104aaa296e7998114e[m
+Author: sachin <sachin3103x5@gmail.com>
+Date:   Wed Oct 14 01:15:05 2026 +0530
+
+    Upload all project files

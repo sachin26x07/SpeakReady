@@ -1,4 +1,40 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+
+type ApiErrorBody = {
+  error?: unknown;
+  message?: unknown;
+  code?: unknown;
+};
+
+async function parseApiResponse<T>(res: Response): Promise<T> {
+  const responseText = await res.text();
+  let data: unknown;
+
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    const responseType = res.headers.get('content-type') || 'an unknown content type';
+    if (!res.ok) {
+      throw new Error(`Request failed with status ${res.status}; the API returned a non-JSON response (${responseType}).`);
+    }
+    throw new Error(`The API returned an invalid JSON response (${responseType}).`);
+  }
+
+  if (!res.ok) {
+    const errorBody = data && typeof data === 'object' ? data as ApiErrorBody : {};
+    const message = typeof errorBody.error === 'string'
+      ? errorBody.error
+      : typeof errorBody.message === 'string'
+        ? errorBody.message
+        : `Request failed with status ${res.status}`;
+    const err = new Error(message) as Error & { code?: unknown; status?: number };
+    err.code = errorBody.code;
+    err.status = res.status;
+    throw err;
+  }
+
+  return data as T;
+}
 
 // ============================================================
 // Generic fetch wrapper
@@ -13,17 +49,7 @@ async function apiFetch<T>(
     ...options,
   });
 
-  const data = await res.json();
-
-  if (!res.ok) {
-    const errMsg = data.error || data.message || `Request failed with status ${res.status}`;
-    const err = new Error(errMsg) as any;
-    err.code = data.code;
-    err.status = res.status;
-    throw err;
-  }
-
-  return data as T;
+  return parseApiResponse<T>(res);
 }
 
 // ============================================================
@@ -177,9 +203,7 @@ export async function parseResume(file: File) {
     method: 'POST',
     body: formData,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Failed to parse resume');
-  return data as { success: boolean; filename: string; text: string; charCount: number; wordCount: number };
+  return parseApiResponse<{ success: boolean; filename: string; text: string; charCount: number; wordCount: number }>(res);
 }
 
 export async function generateInterviewQuestions(params: {

@@ -28,7 +28,7 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
       }}>
         {icon}
       </div>
-      <div className="dashboard-page">
+      <div>
         <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'var(--font-heading)', color: 'var(--text-primary)' }}>{value}</div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</div>
       </div>
@@ -93,7 +93,7 @@ export default function Dashboard() {
   const isNewUser = totalSessions === 0 && grammarResults.length === 0;
 
   return (
-    <div>
+    <div className="dashboard-page">
       <div className="page-header">
         <h1 className="page-title">
           {isNewUser ? '👋 Welcome to SpeakReady AI!' : '🌟 Good ' + (new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 17 ? 'Afternoon' : 'Evening') + '!'}

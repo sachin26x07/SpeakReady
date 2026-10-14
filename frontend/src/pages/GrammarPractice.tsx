@@ -11,6 +11,14 @@ const TOPICS = [
   'workplace English', 'common mistakes',
 ];
 
+const QUESTION_TYPE_LABELS: Record<GrammarQuestion['type'], string> = {
+  'fill-blank': 'Fill in the blank',
+  'multiple-choice': 'Choose the correct answer',
+  'error-identification': 'Identify the error',
+  'sentence-ordering': 'Arrange the words',
+  'sentence-correction': 'Correct the sentence',
+};
+
 function ScoreBadge({ score, total }: { score: number; total: number }) {
   const pct = total > 0 ? Math.round(score / total * 100) : 0;
   const color = pct >= 80 ? 'var(--color-success)' : pct >= 60 ? 'var(--color-warning)' : 'var(--color-error)';
@@ -197,6 +205,11 @@ export default function GrammarPractice() {
           </div>
 
           <div className="card card-elevated fade-in">
+            {config.topic === 'mixed' && (
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary-700)', marginBottom: 8 }}>
+                {QUESTION_TYPE_LABELS[q.type]}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
               <BookOpen size={20} color="var(--color-primary-500)" style={{ flexShrink: 0, marginTop: 2 }} />
               <p style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.6, color: 'var(--text-primary)' }}>{q.question}</p>
@@ -288,7 +301,7 @@ export default function GrammarPractice() {
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-primary-200)' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-primary-700)', marginBottom: 4 }}>Examples:</div>
                       {q.examples.map((ex, i) => (
-                        <div key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>• {ex}</div>
+                        <div key={i} style={{ fontSize: 13, color: 'var(--color-primary-800)', fontStyle: 'italic' }}>• {ex}</div>
                       ))}
                     </div>
                   )}

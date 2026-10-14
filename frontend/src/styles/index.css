@@ -679,6 +679,17 @@ label {
 .option-btn.correct { border-color: var(--color-success); background: #ecfdf5; color: var(--color-primary-800); }
 .option-btn.incorrect { border-color: var(--color-error); background: #fef2f2; color: #991b1b; }
 
+[data-theme="dark"] .option-btn:hover:not(:disabled),
+[data-theme="dark"] .option-btn.selected {
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .upload-area:hover,
+[data-theme="dark"] .upload-area.dragging {
+  background: var(--bg-surface);
+}
+
 /* ============================================================
    Page header
    ============================================================ */

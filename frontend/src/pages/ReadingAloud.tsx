@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { RefreshCw, BookOpen, Eye } from 'lucide-react';
 import { generateReading, compareTranscript } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
+import { getElapsedPracticeMinutes, recordDailySession } from '../services/storage';
 import AudioPlayer from '../components/AudioPlayer';
 import VoiceRecorder from '../components/VoiceRecorder';
 import type { ReadingPassage, TranscriptComparison, WordDiff } from '../types';
@@ -34,8 +35,12 @@ export default function ReadingAloud() {
 
   const transcriptRef = useRef('');
   const transcriptBeforeRecordingRef = useRef('');
+  const sessionStartedAt = useRef(Date.now());
+  const sessionRecorded = useRef(false);
 
   const load = useCallback(async () => {
+    sessionStartedAt.current = Date.now();
+    sessionRecorded.current = false;
     setLoading(true);
     setError('');
     setPassage(null);
@@ -78,6 +83,14 @@ export default function ReadingAloud() {
     try {
       const result = await compareTranscript({ original: passage.passage, transcript: transcriptRef.current });
       setComparison(result);
+      if (!sessionRecorded.current) {
+        recordDailySession({
+          minutesPracticed: getElapsedPracticeMinutes(sessionStartedAt.current),
+          activitiesCompleted: ['reading'],
+          questionsAnswered: 1,
+        });
+        sessionRecorded.current = true;
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

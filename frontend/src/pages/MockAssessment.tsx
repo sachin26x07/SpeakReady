@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Brain, Play, Clock, CheckCircle, RefreshCw } from 'lucide-react';
 import { generateGrammar, generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
 import MockSpeakingSection, { type MockSpeakingResult } from '../components/MockSpeakingSection';
 import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
-import type { GrammarQuestion, ListeningExercise, Difficulty } from '../types';
+import { clearMockAssessment, loadMockAssessment, saveMockAssessment } from '../services/mockAssessmentStorage';
+import { getElapsedPracticeMinutes, getProgress, recordDailySession, recordGrammarResult } from '../services/storage';
+import type { GrammarQuestion, ListeningExercise, Difficulty, MockAssessmentSnapshot, MockSpeakingProgress } from '../types';
 
 type Phase = 'config' | 'grammar' | 'listening' | 'speaking' | 'summary';
 type GrammarQuestionType = GrammarQuestion['type'];
@@ -34,6 +36,53 @@ const GRAMMAR_QUESTION_TYPES: { value: GrammarQuestionType | 'mixed'; label: str
   { value: 'sentence-correction', label: 'Correct the sentence' },
 ];
 
+function normalizeQuestion(question: string): string {
+  return question.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function generateMockGrammarQuestions(params: {
+  difficulty: Difficulty;
+  grammarTopic: string;
+  grammarQuestionType: GrammarQuestionType | 'mixed';
+  provider: string;
+}): Promise<GrammarQuestion[]> {
+  const progress = getProgress();
+  const recentQuestions = progress.grammarResults.slice(-10).map(result => result.question);
+  const previousQuestions = new Set(recentQuestions.map(normalizeQuestion));
+  const seenInBatch = new Set<string>();
+  const distinctQuestions: GrammarQuestion[] = [];
+  const freshQuestions: GrammarQuestion[] = [];
+
+  for (let attempt = 0; attempt < 3 && (distinctQuestions.length < 5 || freshQuestions.length < 4); attempt += 1) {
+    const response = await generateGrammar({
+      count: 5,
+      difficulty: params.difficulty,
+      topic: params.grammarTopic,
+      questionType: params.grammarQuestionType === 'mixed' ? undefined : params.grammarQuestionType,
+      provider: params.provider,
+      recentIds: progress.recentGrammarIds.slice(-50),
+      recentQuestions: [...recentQuestions, ...freshQuestions.map(question => question.question)],
+    });
+
+    for (const question of response.questions) {
+      const normalized = normalizeQuestion(question.question);
+      if (!normalized || seenInBatch.has(normalized)) continue;
+      seenInBatch.add(normalized);
+      distinctQuestions.push(question);
+      if (!previousQuestions.has(normalized)) freshQuestions.push(question);
+    }
+  }
+
+  if (freshQuestions.length < 4 || distinctQuestions.length < 5) {
+    throw new Error('Could not generate five distinct grammar questions, including four new ones. Please try again.');
+  }
+
+  const selectedQuestions = freshQuestions.slice(0, 4);
+  const fifthQuestion = distinctQuestions.find(question => !selectedQuestions.includes(question));
+  if (fifthQuestion) selectedQuestions.push(fifthQuestion);
+  return selectedQuestions;
+}
+
 export default function MockAssessment() {
   const { settings } = useSettings();
   const [phase, setPhase] = useState<Phase>('config');
@@ -42,6 +91,7 @@ export default function MockAssessment() {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [grammarTopic, setGrammarTopic] = useState('mixed');
   const [grammarQuestionType, setGrammarQuestionType] = useState<GrammarQuestionType | 'mixed'>('mixed');
+  const [savedAssessment, setSavedAssessment] = useState<MockAssessmentSnapshot | null>(loadMockAssessment);
 
   // Grammar state
   const [grammarQuestions, setGrammarQuestions] = useState<GrammarQuestion[]>([]);
@@ -62,23 +112,25 @@ export default function MockAssessment() {
   const [showPassage, setShowPassage] = useState(false);
 
   const [speakingResult, setSpeakingResult] = useState<MockSpeakingResult | null>(null);
+  const [speakingProgress, setSpeakingProgress] = useState<MockSpeakingProgress | null>(null);
+  const mockStartedAt = useRef(Date.now());
 
   const startMock = useCallback(async () => {
     setLoading(true);
     setError('');
+    mockStartedAt.current = Date.now();
     try {
       const [gRes, lRes] = await Promise.all([
-        generateGrammar({
-          count: 5,
+        generateMockGrammarQuestions({
           difficulty,
-          topic: grammarTopic,
-          questionType: grammarQuestionType === 'mixed' ? undefined : grammarQuestionType,
+          grammarTopic,
+          grammarQuestionType,
           provider: settings.provider,
         }),
         generateListening({ difficulty, topic: 'workplace conversation', provider: settings.provider }),
       ]);
-      if (!gRes.questions.length) throw new Error('No grammar questions were generated. Please try again.');
-      setGrammarQuestions(gRes.questions);
+      if (!gRes.length) throw new Error('No grammar questions were generated. Please try again.');
+      setGrammarQuestions(gRes);
       setListeningEx(lRes.exercise);
       setGrammarIndex(0);
       setGrammarSelected(null);
@@ -93,6 +145,8 @@ export default function MockAssessment() {
       setListeningScore(0);
       setShowPassage(false);
       setSpeakingResult(null);
+      setSpeakingProgress(null);
+      setSavedAssessment(null);
       setPhase('grammar');
     } catch (e: any) {
       setError(e.message || 'Failed to start assessment.');
@@ -100,6 +154,115 @@ export default function MockAssessment() {
       setLoading(false);
     }
   }, [difficulty, grammarQuestionType, grammarTopic, settings.provider]);
+
+  const resumeMock = () => {
+    if (!savedAssessment) return;
+    const saved = savedAssessment;
+    setDifficulty(saved.difficulty);
+    setGrammarTopic(saved.grammarTopic);
+    setGrammarQuestionType(saved.grammarQuestionType);
+    setGrammarQuestions(saved.grammarQuestions);
+    setGrammarIndex(saved.grammarIndex);
+    setGrammarSelected(saved.grammarSelected);
+    setGrammarTypedAnswer(saved.grammarTypedAnswer);
+    setGrammarAnswerMode(saved.grammarAnswerMode);
+    setGrammarSubmitted(saved.grammarSubmitted);
+    setGrammarScore(saved.grammarScore);
+    setListeningEx(saved.listeningExercise);
+    setListeningIndex(saved.listeningIndex);
+    setListeningAnswers(saved.listeningAnswers);
+    setListeningSelected(saved.listeningSelected);
+    setListeningSubmitted(saved.listeningSubmitted);
+    setListeningScore(saved.listeningScore);
+    setShowPassage(saved.showPassage);
+    setSpeakingProgress(saved.speakingProgress);
+    mockStartedAt.current = Date.now();
+    setError('');
+    setPhase(saved.phase);
+    setSavedAssessment(null);
+  };
+
+  const saveAndExit = () => {
+    if (!listeningEx || phase === 'config' || phase === 'summary') return;
+    const snapshot: MockAssessmentSnapshot = {
+      version: 1,
+      phase,
+      difficulty,
+      grammarTopic,
+      grammarQuestionType,
+      grammarQuestions,
+      grammarIndex,
+      grammarSelected,
+      grammarTypedAnswer,
+      grammarAnswerMode,
+      grammarSubmitted,
+      grammarScore,
+      listeningExercise: listeningEx,
+      listeningIndex,
+      listeningAnswers,
+      listeningSelected,
+      listeningSubmitted,
+      listeningScore,
+      showPassage,
+      speakingProgress,
+    };
+    saveMockAssessment(snapshot);
+    setSavedAssessment(snapshot);
+    setPhase('config');
+  };
+
+  useEffect(() => {
+    if (phase === 'summary') {
+      clearMockAssessment();
+      setSavedAssessment(null);
+      return;
+    }
+    if (phase === 'config' || !listeningEx || !grammarQuestions.length) return;
+
+    const snapshot: MockAssessmentSnapshot = {
+      version: 1,
+      phase,
+      difficulty,
+      grammarTopic,
+      grammarQuestionType,
+      grammarQuestions,
+      grammarIndex,
+      grammarSelected,
+      grammarTypedAnswer,
+      grammarAnswerMode,
+      grammarSubmitted,
+      grammarScore,
+      listeningExercise: listeningEx,
+      listeningIndex,
+      listeningAnswers,
+      listeningSelected,
+      listeningSubmitted,
+      listeningScore,
+      showPassage,
+      speakingProgress,
+    };
+    saveMockAssessment(snapshot);
+  }, [
+    difficulty,
+    grammarAnswerMode,
+    grammarIndex,
+    grammarQuestionType,
+    grammarQuestions,
+    grammarScore,
+    grammarSelected,
+    grammarSubmitted,
+    grammarTopic,
+    grammarTypedAnswer,
+    listeningAnswers,
+    listeningEx,
+    listeningIndex,
+    listeningScore,
+    listeningSelected,
+    listeningSubmitted,
+    phase,
+    showPassage,
+    speakingProgress,
+  ]);
 
   const gq = grammarQuestions[grammarIndex];
   const lq = listeningEx?.questions[listeningIndex];
@@ -118,6 +281,15 @@ export default function MockAssessment() {
     const answer = grammarUserAnswer;
     if (!answer) return;
     setGrammarSubmitted(true);
+    recordGrammarResult({
+      questionId: gq.id,
+      question: gq.question,
+      userAnswer: answer,
+      correctAnswer: grammarCorrectAnswer,
+      isCorrect: grammarIsCorrect,
+      topic: gq.topic,
+      timestamp: Date.now(),
+    });
     if (grammarIsCorrect) {
       setGrammarScore(s => s + 1);
     }
@@ -176,6 +348,20 @@ export default function MockAssessment() {
       {phase === 'config' && (
         <div className="card card-elevated" style={{ maxWidth: 640 }}>
           <div className="card-title" style={{ marginBottom: 20 }}>Configure Your Mock Test</div>
+          {savedAssessment && (
+            <div className="card" style={{ marginBottom: 20, border: '1px solid var(--color-primary-400)' }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>You have an assessment in progress</div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                Your answers and current section are saved on this device.
+              </p>
+              <button className="btn btn-primary" onClick={resumeMock} style={{ marginRight: 8 }}>
+                Continue Assessment
+              </button>
+              <button className="btn btn-secondary" onClick={startMock} disabled={loading}>
+                Start New Assessment
+              </button>
+            </div>
+          )}
           <div className="form-group" style={{ marginBottom: 20 }}>
             <label>Difficulty Level</label>
             <select className="select" value={difficulty} onChange={e => setDifficulty(e.target.value as Difficulty)}>
@@ -254,10 +440,12 @@ export default function MockAssessment() {
             </div>
           </div>
           {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
-          <button className="btn btn-primary btn-lg w-full" onClick={startMock} disabled={loading}>
-            {loading ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Play size={18} />}
-            Start Mock Assessment
-          </button>
+          {!savedAssessment && (
+            <button className="btn btn-primary btn-lg w-full" onClick={startMock} disabled={loading}>
+              {loading ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Play size={18} />}
+              Start Mock Assessment
+            </button>
+          )}
         </div>
       )}
 
@@ -429,11 +617,27 @@ export default function MockAssessment() {
           difficulty={difficulty}
           provider={settings.provider}
           feedbackLanguage={settings.feedbackLanguage}
+          initialProgress={speakingProgress}
+          onProgressChange={setSpeakingProgress}
           onComplete={result => {
             setSpeakingResult(result);
+            recordDailySession({
+              minutesPracticed: getElapsedPracticeMinutes(mockStartedAt.current),
+              activitiesCompleted: ['grammar', 'listening', 'speaking'],
+              grammarAccuracy: Math.round(grammarPct * 100),
+              listeningAccuracy: Math.round(listeningPct * 100),
+              speakingScore: result.percentage,
+              questionsAnswered: grammarQuestions.length + listeningQuestionCount + result.totalPossible,
+            });
             setPhase('summary');
           }}
         />
+      )}
+
+      {phase !== 'config' && phase !== 'summary' && (
+        <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={saveAndExit}>
+          Save &amp; Exit
+        </button>
       )}
 
       {/* Summary */}

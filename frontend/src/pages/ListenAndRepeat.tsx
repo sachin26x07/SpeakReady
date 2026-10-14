@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { RefreshCw, Eye, EyeOff, CheckCircle, Mic, Info } from 'lucide-react';
 import { generateRepeatSentences, compareTranscript } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
-import { addRecentSentence, getProgress } from '../services/storage';
+import { addRecentSentence, getElapsedPracticeMinutes, getProgress, recordDailySession } from '../services/storage';
 import AudioPlayer from '../components/AudioPlayer';
 import VoiceRecorder from '../components/VoiceRecorder';
 import type { RepeatSentence, TranscriptComparison, WordDiff } from '../types';
@@ -47,10 +47,12 @@ export default function ListenAndRepeat() {
   const [level, setLevel] = useState(1);
   const [retries, setRetries] = useState(0);
   const transcriptRef = useRef('');
+  const sessionStartedAt = useRef(Date.now());
 
   const progress = getProgress();
 
   const loadSentences = useCallback(async (lvl = level) => {
+    sessionStartedAt.current = Date.now();
     setLoading(true);
     setError('');
     setSentences([]);
@@ -112,6 +114,12 @@ export default function ListenAndRepeat() {
 
   const nextSentence = () => {
     if (current + 1 >= sentences.length) {
+      recordDailySession({
+        minutesPracticed: getElapsedPracticeMinutes(sessionStartedAt.current),
+        activitiesCompleted: ['repeat'],
+        repeatAccuracy: comparison?.accuracy,
+        questionsAnswered: sentences.length,
+      });
       loadSentences();
     } else {
       setCurrent(c => c + 1);

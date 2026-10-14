@@ -4,6 +4,7 @@ import { generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
 import { resolveOptionAnswer } from '../utils/answers';
+import { getElapsedPracticeMinutes, recordDailySession } from '../services/storage';
 import type { ListeningExercise, Difficulty } from '../types';
 
 const TOPICS = [
@@ -22,8 +23,10 @@ export default function ListeningComprehension() {
   const [score, setScore] = useState(0);
   const [examMode, setExamMode] = useState(false);
   const [config, setConfig] = useState({ difficulty: 'medium' as Difficulty, topic: 'workplace conversation' });
+  const [sessionStartedAt, setSessionStartedAt] = useState(Date.now());
 
   const load = useCallback(async () => {
+    setSessionStartedAt(Date.now());
     setLoading(true);
     setError('');
     setExercise(null);
@@ -56,6 +59,12 @@ export default function ListeningComprehension() {
     setScore(correct);
     setSubmitted(true);
     setShowTranscript(true);
+    recordDailySession({
+      minutesPracticed: getElapsedPracticeMinutes(sessionStartedAt),
+      activitiesCompleted: ['listening'],
+      listeningAccuracy: Math.round((correct / exercise.questions.length) * 100),
+      questionsAnswered: exercise.questions.length,
+    });
   };
 
   return (

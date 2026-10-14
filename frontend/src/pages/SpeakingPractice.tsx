@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { RefreshCw, MessageSquare, AlertCircle, Lightbulb, Info } from 'lucide-react';
 import { getSpeakingPrompt, evaluateSpeaking } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
-import { recordDailySession } from '../services/storage';
+import { getElapsedPracticeMinutes, recordDailySession } from '../services/storage';
 import VoiceRecorder from '../components/VoiceRecorder';
 import type { SpeakingPrompt, SpeakingEvaluation, Difficulty } from '../types';
 
@@ -41,8 +41,10 @@ export default function SpeakingPractice() {
   const [showHints, setShowHints] = useState(false);
   const [config, setConfig] = useState({ category: 'self-introduction', difficulty: 'medium' as Difficulty });
   const transcriptRef = useRef('');
+  const sessionStartedAt = useRef(Date.now());
 
   const loadPrompt = useCallback(async () => {
+    sessionStartedAt.current = Date.now();
     setLoading(true);
     setError('');
     setPrompt(null);
@@ -87,6 +89,7 @@ export default function SpeakingPractice() {
       });
       setEvaluation(res.evaluation);
       recordDailySession({
+        minutesPracticed: getElapsedPracticeMinutes(sessionStartedAt.current),
         activitiesCompleted: ['speaking'],
         speakingScore: res.evaluation.overall_score,
         questionsAnswered: 1,

@@ -100,7 +100,16 @@ export function saveSettings(settings: AppSettings): void {
 // ============================================================
 
 export function getProgress(): ProgressData {
-  return { ...DEFAULT_PROGRESS, ...load<Partial<ProgressData>>(KEYS.progress, {}) };
+  const progress = load<Partial<ProgressData>>(KEYS.progress, {});
+  return {
+    ...DEFAULT_PROGRESS,
+    ...progress,
+    sessions: progress.sessions || [],
+    grammarResults: progress.grammarResults || [],
+    weakAreas: progress.weakAreas || [],
+    recentGrammarIds: progress.recentGrammarIds || [],
+    recentSentences: progress.recentSentences || [],
+  };
 }
 
 export function saveProgress(progress: ProgressData): void {
@@ -130,7 +139,8 @@ export function recordGrammarResult(result: GrammarResult): void {
 
 export function recordDailySession(session: Partial<DailySession>): void {
   const p = getProgress();
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = formatLocalDate(now);
   
   const existingIndex = p.sessions.findIndex(s => s.date === today);
   if (existingIndex >= 0) {
@@ -160,9 +170,8 @@ export function recordDailySession(session: Partial<DailySession>): void {
 
   // Update streak
   const lastDate = p.lastPracticeDate;
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterdayStr = formatLocalDate(yesterday);
   
   if (lastDate === today) {
     // Same day, no change
@@ -175,10 +184,21 @@ export function recordDailySession(session: Partial<DailySession>): void {
   }
   
   p.lastPracticeDate = today;
-  p.totalSessions = (p.totalSessions || 0) + (existingIndex >= 0 ? 0 : 1);
+  p.totalSessions = (p.totalSessions || 0) + 1;
   p.totalMinutes = (p.totalMinutes || 0) + (session.minutesPracticed || 0);
 
   saveProgress(p);
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getElapsedPracticeMinutes(startedAt: number): number {
+  return Math.max(1, Math.round((Date.now() - startedAt) / 60_000));
 }
 
 export function addRecentSentence(sentence: string): void {
@@ -240,7 +260,7 @@ export function resetAllData(): void {
 
 export function getTodaySession(): DailySession | null {
   const p = getProgress();
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   return p.sessions.find(s => s.date === today) || null;
 }
 
@@ -252,7 +272,7 @@ export function getWeeklyStats(): { dates: string[]; minutes: number[] } {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(d);
     dates.push(dateStr);
     const session = p.sessions.find(s => s.date === dateStr);
     minutes.push(session?.minutesPracticed || 0);

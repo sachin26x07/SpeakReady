@@ -68,15 +68,20 @@ export async function generateGrammarQuestions(
   topic: string,
   provider: AIProvider,
   recentIds: string[] = [],
-  questionType?: GrammarQuestion['type']
+  questionType?: GrammarQuestion['type'],
+  recentQuestions: string[] = []
 ): Promise<GrammarQuestion[]> {
   const avoidHint = recentIds.length > 0 ? `Avoid repeating questions with IDs: ${recentIds.slice(-10).join(', ')}.` : '';
+  const avoidQuestionHint = recentQuestions.length > 0
+    ? `At least 70% of this batch must use question wording different from these recent questions. Avoid repeating or lightly rephrasing them:\n${recentQuestions.slice(-10).map(question => `- ${question}`).join('\n')}`
+    : '';
   const typeHint = questionType
     ? `Every question must have the type "${questionType}". Do not generate questions of any other type.`
     : 'Types to include: fill-blank, multiple-choice, error-identification, sentence-correction, sentence-ordering.';
   const prompt = `Generate ${count} English grammar practice questions for a student preparing for Cognizant GenC English assessment.
 Difficulty: ${difficulty}. Topic focus: ${topic}.
 ${avoidHint}
+${avoidQuestionHint}
 
 Each question must have a unique id (short slug like "tense-q1-abc").
 ${typeHint}

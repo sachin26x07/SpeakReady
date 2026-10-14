@@ -143,6 +143,50 @@ export interface ReadingPassage {
   reading_tips: string[];
 }
 
+export interface MockSpeakingProgress {
+  sectionIndex: number;
+  taskIndex: number;
+  remainingSeconds: number;
+  readingSentences: string[];
+  repeatSentences: RepeatSentence[];
+  jumbledQuestions: GrammarQuestion[];
+  prompt: SpeakingPrompt | null;
+  transcript: string;
+  textAnswer: string;
+  useTextAnswer: boolean;
+  comparisonAccuracy: number | null;
+  speakingEvaluation: SpeakingEvaluation | null;
+  selectedAnswer: string | null;
+  typedAnswer: string;
+  jumbledSubmitted: boolean;
+  results: number[][];
+}
+
+export type MockAssessmentPhase = 'grammar' | 'listening' | 'speaking';
+
+export interface MockAssessmentSnapshot {
+  version: 1;
+  phase: MockAssessmentPhase;
+  difficulty: Difficulty;
+  grammarTopic: string;
+  grammarQuestionType: GrammarQuestion['type'] | 'mixed';
+  grammarQuestions: GrammarQuestion[];
+  grammarIndex: number;
+  grammarSelected: string | null;
+  grammarTypedAnswer: string;
+  grammarAnswerMode: 'choose' | 'type';
+  grammarSubmitted: boolean;
+  grammarScore: number;
+  listeningExercise: ListeningExercise;
+  listeningIndex: number;
+  listeningAnswers: string[];
+  listeningSelected: string | null;
+  listeningSubmitted: boolean;
+  listeningScore: number;
+  showPassage: boolean;
+  speakingProgress: MockSpeakingProgress | null;
+}
+
 export interface VocabularyWord {
   word: string;
   pronunciation: string;

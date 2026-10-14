@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { RefreshCw, CheckCircle, XCircle, ArrowRight, BookOpen, Lightbulb } from 'lucide-react';
 import { generateGrammar } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
-import { recordGrammarResult, getProgress } from '../services/storage';
+import { getElapsedPracticeMinutes, recordDailySession, recordGrammarResult, getProgress } from '../services/storage';
 import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
 import type { GrammarQuestion, Difficulty } from '../types';
 
@@ -50,6 +50,7 @@ export default function GrammarPractice() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [textInput, setTextInput] = useState('');
+  const sessionStartedAt = useRef(Date.now());
 
   const [config, setConfig] = useState({
     count: 5,
@@ -69,6 +70,7 @@ export default function GrammarPractice() {
     setScore(0);
     setSessionDone(false);
     setTextInput('');
+    sessionStartedAt.current = Date.now();
 
     try {
       const res = await generateGrammar({
@@ -77,6 +79,7 @@ export default function GrammarPractice() {
         topic: config.topic,
         provider: settings.provider,
         recentIds: progress.recentGrammarIds,
+        recentQuestions: progress.grammarResults.slice(-10).map(result => result.question),
       });
       setQuestions(res.questions);
     } catch (e: any) {
@@ -84,7 +87,7 @@ export default function GrammarPractice() {
     } finally {
       setLoading(false);
     }
-  }, [config, settings.provider, progress.recentGrammarIds]);
+  }, [config, settings.provider, progress.grammarResults, progress.recentGrammarIds]);
 
   const q = questions[current];
   const hasMultipleChoiceOptions = Boolean(q?.type === 'multiple-choice' && q.options?.length);
@@ -115,6 +118,12 @@ export default function GrammarPractice() {
   const handleNext = () => {
     if (current + 1 >= questions.length) {
       setSessionDone(true);
+      recordDailySession({
+        minutesPracticed: getElapsedPracticeMinutes(sessionStartedAt.current),
+        activitiesCompleted: ['grammar'],
+        grammarAccuracy: Math.round((score / questions.length) * 100),
+        questionsAnswered: questions.length,
+      });
     } else {
       setCurrent(c => c + 1);
       setSelected(null);

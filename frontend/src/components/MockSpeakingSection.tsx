@@ -3,7 +3,6 @@ import { ArrowRight, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import {
   compareTranscript,
   evaluateSpeaking,
-  generateGrammar,
   generateReading,
   generateRepeatSentences,
   getSpeakingPrompt,
@@ -11,7 +10,15 @@ import {
 import AudioPlayer from './AudioPlayer';
 import VoiceRecorder from './VoiceRecorder';
 import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
-import type { Difficulty, GrammarQuestion, RepeatSentence, SpeakingEvaluation, SpeakingPrompt } from '../types';
+import { addRecentSentence, getProgress } from '../services/storage';
+import type {
+  Difficulty,
+  GrammarQuestion,
+  MockSpeakingProgress,
+  RepeatSentence,
+  SpeakingEvaluation,
+  SpeakingPrompt,
+} from '../types';
 
 const SECTIONS = [
   { key: 'reading', label: 'Reading Sentences', count: 8 },
@@ -38,6 +45,8 @@ interface MockSpeakingSectionProps {
   difficulty: Difficulty;
   provider: string;
   feedbackLanguage: string;
+  initialProgress: MockSpeakingProgress | null;
+  onProgressChange: (progress: MockSpeakingProgress) => void;
   onComplete: (result: MockSpeakingResult) => void;
 }
 
@@ -47,35 +56,123 @@ function splitPassageIntoSentences(passage: string): string[] {
     .filter(Boolean);
 }
 
+function shuffle<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function createJumbledQuestions(count: number, difficulty: Difficulty, recentSentences: string[]): GrammarQuestion[] {
+  const sentenceBank = [
+    'The analyst submitted the report yesterday.',
+    'Our team will review the proposal tomorrow.',
+    'The manager approved the revised schedule.',
+    'She has completed the presentation for the client.',
+    'The meeting was postponed because of heavy rain.',
+    'Please send the updated document before noon.',
+    'The company is launching a new training program.',
+    'We discussed the project timeline during the meeting.',
+    'The employees received their new access cards.',
+    'He carefully checked the figures in the spreadsheet.',
+    'The customer appreciated our prompt response.',
+    'They are preparing for the quarterly review.',
+    'The department achieved its targets this month.',
+    'I will share the meeting notes with everyone.',
+    'The new software reduced processing time significantly.',
+    'Our supervisor explained the safety procedures clearly.',
+    'The interview panel asked several thoughtful questions.',
+    'She presented her findings to the leadership team.',
+    'The support team resolved the issue within an hour.',
+    'We should confirm the appointment by Friday.',
+    'The candidate described her experience confidently.',
+    'All visitors must sign in at the reception desk.',
+    'The engineers tested the updated application carefully.',
+    'He usually arrives at the office before nine.',
+    'The finance team prepared a detailed annual budget.',
+    'Please place the completed forms on my desk.',
+    'The client requested a few changes to the design.',
+    'They have been working on this project since April.',
+    'Clear communication helps teams solve problems faster.',
+    'The presentation included examples from recent projects.',
+  ];
+  const recentlyUsed = new Set(recentSentences.slice(-10).map(sentence => sentence.toLowerCase()));
+  const freshSentences = shuffle(sentenceBank.filter(sentence => !recentlyUsed.has(sentence.toLowerCase())));
+  const shuffledSentences = [...freshSentences, ...shuffle(sentenceBank.filter(sentence => recentlyUsed.has(sentence.toLowerCase())))]
+    .slice(0, count);
+
+  return shuffledSentences.map((sentence, index) => {
+    const words = sentence.replace(/[.!?]+$/, '').split(/\s+/);
+    let fragments = shuffle(words);
+    if (fragments.join(' ').toLowerCase() === words.join(' ').toLowerCase()) {
+      fragments = [...fragments].reverse();
+    }
+
+    return {
+      id: `mock-jumbled-${Date.now()}-${index}`,
+      type: 'sentence-ordering',
+      question: `Arrange the following words to form a correct sentence: ${fragments.map((word, wordIndex) => `${wordIndex + 1}) ${word}`).join(' ')}`,
+      answer: sentence,
+      explanation: 'Put the words in their natural English sentence order.',
+      rule: 'Sentence structure',
+      examples: [],
+      topic: 'Sentence Structure',
+      difficulty,
+    };
+  });
+}
+
+function hasSavedSectionContent(progress: MockSpeakingProgress | null): boolean {
+  if (!progress) return false;
+  switch (SECTIONS[progress.sectionIndex]?.key) {
+    case 'reading':
+      return progress.readingSentences.length === 8;
+    case 'repeat':
+      return progress.repeatSentences.length === 16;
+    case 'jumbled':
+      return progress.jumbledQuestions.length === 10;
+    case 'qa':
+    case 'storytelling':
+      return progress.prompt !== null;
+    default:
+      return false;
+  }
+}
+
 export default function MockSpeakingSection({
   difficulty,
   provider,
   feedbackLanguage,
+  initialProgress,
+  onProgressChange,
   onComplete,
 }: MockSpeakingSectionProps) {
-  const [sectionIndex, setSectionIndex] = useState(0);
-  const [taskIndex, setTaskIndex] = useState(0);
+  const [sectionIndex, setSectionIndex] = useState(initialProgress?.sectionIndex ?? 0);
+  const [taskIndex, setTaskIndex] = useState(initialProgress?.taskIndex ?? 0);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [remainingSeconds, setRemainingSeconds] = useState(58 * 60);
+  const [remainingSeconds, setRemainingSeconds] = useState(initialProgress?.remainingSeconds ?? 58 * 60);
   const [timeExpired, setTimeExpired] = useState(false);
   const [error, setError] = useState('');
-  const [readingSentences, setReadingSentences] = useState<string[]>([]);
-  const [repeatSentences, setRepeatSentences] = useState<RepeatSentence[]>([]);
-  const [jumbledQuestions, setJumbledQuestions] = useState<GrammarQuestion[]>([]);
-  const [prompt, setPrompt] = useState<SpeakingPrompt | null>(null);
-  const [transcript, setTranscript] = useState('');
-  const [textAnswer, setTextAnswer] = useState('');
-  const [useTextAnswer, setUseTextAnswer] = useState(false);
-  const [comparisonAccuracy, setComparisonAccuracy] = useState<number | null>(null);
-  const [speakingEvaluation, setSpeakingEvaluation] = useState<SpeakingEvaluation | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [typedAnswer, setTypedAnswer] = useState('');
-  const [jumbledSubmitted, setJumbledSubmitted] = useState(false);
-  const resultsRef = useRef<number[][]>(SECTIONS.map(() => []));
-  const transcriptRef = useRef('');
-  const remainingSecondsRef = useRef(58 * 60);
+  const [readingSentences, setReadingSentences] = useState<string[]>(initialProgress?.readingSentences ?? []);
+  const [repeatSentences, setRepeatSentences] = useState<RepeatSentence[]>(initialProgress?.repeatSentences ?? []);
+  const [jumbledQuestions, setJumbledQuestions] = useState<GrammarQuestion[]>(initialProgress?.jumbledQuestions ?? []);
+  const [prompt, setPrompt] = useState<SpeakingPrompt | null>(initialProgress?.prompt ?? null);
+  const [transcript, setTranscript] = useState(initialProgress?.transcript ?? '');
+  const [textAnswer, setTextAnswer] = useState(initialProgress?.textAnswer ?? '');
+  const [useTextAnswer, setUseTextAnswer] = useState(initialProgress?.useTextAnswer ?? false);
+  const [comparisonAccuracy, setComparisonAccuracy] = useState<number | null>(initialProgress?.comparisonAccuracy ?? null);
+  const [speakingEvaluation, setSpeakingEvaluation] = useState<SpeakingEvaluation | null>(initialProgress?.speakingEvaluation ?? null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(initialProgress?.selectedAnswer ?? null);
+  const [typedAnswer, setTypedAnswer] = useState(initialProgress?.typedAnswer ?? '');
+  const [jumbledSubmitted, setJumbledSubmitted] = useState(initialProgress?.jumbledSubmitted ?? false);
+  const resultsRef = useRef<number[][]>(initialProgress?.results ?? SECTIONS.map(() => []));
+  const transcriptRef = useRef(initialProgress?.transcript ?? '');
+  const remainingSecondsRef = useRef(initialProgress?.remainingSeconds ?? 58 * 60);
+  const resumedRef = useRef(hasSavedSectionContent(initialProgress));
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -145,17 +242,9 @@ export default function MockSpeakingSection({
           break;
         }
         case 'jumbled': {
-          const result = await generateGrammar({
-            count: section.count,
-            difficulty,
-            topic: 'sentence ordering',
-            questionType: 'sentence-ordering',
-            provider,
-          });
-          if (result.questions.length !== section.count || result.questions.some(question => question.type !== 'sentence-ordering')) {
-            throw new Error('Could not generate 10 jumbled-sentence questions. Please try again.');
-          }
-          setJumbledQuestions(result.questions);
+          const questions = createJumbledQuestions(section.count, difficulty, getProgress().recentSentences);
+          questions.forEach(question => addRecentSentence(question.answer));
+          setJumbledQuestions(questions);
           break;
         }
         case 'qa':
@@ -171,8 +260,48 @@ export default function MockSpeakingSection({
   }, [difficulty, loadPrompt, provider]);
 
   useEffect(() => {
-    void loadSection(0);
-  }, [loadSection]);
+    onProgressChange({
+      sectionIndex,
+      taskIndex,
+      remainingSeconds,
+      readingSentences,
+      repeatSentences,
+      jumbledQuestions,
+      prompt,
+      transcript,
+      textAnswer,
+      useTextAnswer,
+      comparisonAccuracy,
+      speakingEvaluation,
+      selectedAnswer,
+      typedAnswer,
+      jumbledSubmitted,
+      results: resultsRef.current,
+    });
+  }, [
+    comparisonAccuracy,
+    jumbledQuestions,
+    jumbledSubmitted,
+    onProgressChange,
+    prompt,
+    readingSentences,
+    remainingSeconds,
+    repeatSentences,
+    sectionIndex,
+    selectedAnswer,
+    speakingEvaluation,
+    taskIndex,
+    textAnswer,
+    transcript,
+    typedAnswer,
+    useTextAnswer,
+  ]);
+
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    void loadSection(initialProgress?.sectionIndex ?? 0);
+  }, [initialProgress?.sectionIndex, loadSection]);
 
   const section = SECTIONS[sectionIndex];
   const currentReadingSentence = readingSentences[taskIndex];

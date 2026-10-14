@@ -84,6 +84,7 @@ export async function generateGrammar(params: {
   questionType?: 'fill-blank' | 'multiple-choice' | 'error-identification' | 'sentence-ordering' | 'sentence-correction';
   provider: string;
   recentIds?: string[];
+  recentQuestions?: string[];
 }) {
   return apiFetch<{ questions: any[] }>('/api/practice/grammar/generate', {
     method: 'POST',

@@ -3,7 +3,7 @@ import { RefreshCw, CheckCircle, XCircle, ArrowRight, BookOpen, Lightbulb } from
 import { generateGrammar } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import { recordGrammarResult, getProgress } from '../services/storage';
-import { resolveOptionAnswer } from '../utils/answers';
+import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
 import type { GrammarQuestion, Difficulty } from '../types';
 
 const TOPICS = [
@@ -87,15 +87,18 @@ export default function GrammarPractice() {
   }, [config, settings.provider, progress.recentGrammarIds]);
 
   const q = questions[current];
+  const hasMultipleChoiceOptions = Boolean(q?.type === 'multiple-choice' && q.options?.length);
   const correctAnswer = q ? resolveOptionAnswer(q.answer, q.options) : '';
 
   const handleSubmit = () => {
     if (!q) return;
-    const answer = q.type === 'multiple-choice' ? selected : textInput.trim();
+    const answer = hasMultipleChoiceOptions ? selected : textInput.trim();
     if (!answer) return;
     setSubmitted(true);
     const expectedAnswer = resolveOptionAnswer(q.answer, q.options);
-    const isCorrect = answer.trim().toLowerCase() === expectedAnswer.trim().toLowerCase();
+    const isCorrect = hasMultipleChoiceOptions
+      ? answer.trim().toLowerCase() === expectedAnswer.trim().toLowerCase()
+      : writtenAnswersMatch(answer, expectedAnswer);
     if (isCorrect) setScore(s => s + 1);
 
     recordGrammarResult({
@@ -219,7 +222,7 @@ export default function GrammarPractice() {
             </div>
 
             {/* Options */}
-            {q.type === 'multiple-choice' && q.options && (
+            {hasMultipleChoiceOptions && q.options && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {q.options.map(opt => {
                   let cls = 'option-btn';
@@ -246,7 +249,7 @@ export default function GrammarPractice() {
             )}
 
             {/* Text input for other types */}
-            {q.type !== 'multiple-choice' && (
+            {!hasMultipleChoiceOptions && (
               <div>
                 <label style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Your answer:</label>
                 <input
@@ -284,8 +287,13 @@ export default function GrammarPractice() {
             {/* Explanation */}
             {submitted && (
               <div className="fade-in" style={{ marginTop: 20 }}>
-                <div className={`alert ${(selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 12 }}>
-                  {(selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+                <div className={`alert ${hasMultipleChoiceOptions
+                  ? (selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'
+                  : writtenAnswersMatch(selected || textInput, correctAnswer) ? 'alert-success' : 'alert-error'
+                }`} style={{ marginBottom: 12 }}>
+                  {(hasMultipleChoiceOptions
+                    ? (selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase()
+                    : writtenAnswersMatch(selected || textInput, correctAnswer))
                     ? <><CheckCircle size={16} /> <strong>Correct!</strong> Well done!</>
                     : <><XCircle size={16} /> <strong>Incorrect.</strong> The answer is: <strong>{correctAnswer}</strong></>
                   }

@@ -21,3 +21,15 @@ export function resolveOptionAnswer(answer: string, options?: string[]): string 
 
   return answer;
 }
+
+export function normalizeWrittenAnswer(answer: string): string {
+  return answer
+    .toLocaleLowerCase()
+    .replace(/[.,!?;:'"()[\]{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function writtenAnswersMatch(userAnswer: string, correctAnswer: string): boolean {
+  return normalizeWrittenAnswer(userAnswer) === normalizeWrittenAnswer(correctAnswer);
+}

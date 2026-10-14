@@ -4,7 +4,7 @@ import { generateGrammar, generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
 import MockSpeakingSection, { type MockSpeakingResult } from '../components/MockSpeakingSection';
-import { resolveOptionAnswer } from '../utils/answers';
+import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
 import type { GrammarQuestion, ListeningExercise, Difficulty } from '../types';
 
 type Phase = 'config' | 'grammar' | 'listening' | 'speaking' | 'summary';
@@ -108,7 +108,9 @@ export default function MockAssessment() {
   const grammarUserAnswer = grammarCanChoose && grammarAnswerMode === 'choose'
     ? grammarSelected || ''
     : gq ? resolveOptionAnswer(grammarTypedAnswer.trim(), gq.options) : grammarTypedAnswer.trim();
-  const grammarIsCorrect = grammarUserAnswer.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase();
+  const grammarIsCorrect = grammarCanChoose && grammarAnswerMode === 'choose'
+    ? grammarUserAnswer.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()
+    : writtenAnswersMatch(grammarUserAnswer, grammarCorrectAnswer);
   const listeningCorrectAnswer = lq ? resolveOptionAnswer(lq.answer, lq.options) : '';
 
   const submitGrammar = () => {
@@ -116,7 +118,7 @@ export default function MockAssessment() {
     const answer = grammarUserAnswer;
     if (!answer) return;
     setGrammarSubmitted(true);
-    if (answer.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()) {
+    if (grammarIsCorrect) {
       setGrammarScore(s => s + 1);
     }
   };
@@ -303,7 +305,7 @@ export default function MockAssessment() {
                   if (grammarSubmitted) {
                     if (opt.toLowerCase() === grammarCorrectAnswer.toLowerCase()) cls += ' correct';
                     else if (opt === grammarSelected) cls += ' incorrect';
-                  } else if (opt === grammarSelected) cls += ' selected';
+                  } else if (grammarAnswerMode === 'choose' && opt === grammarSelected) cls += ' selected';
                   return (
                     <button key={opt} className={cls} onClick={() => !grammarSubmitted && setGrammarSelected(opt)} disabled={grammarSubmitted}>
                       {opt}

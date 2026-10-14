@@ -10,7 +10,7 @@ import {
 } from '../services/api';
 import AudioPlayer from './AudioPlayer';
 import VoiceRecorder from './VoiceRecorder';
-import { resolveOptionAnswer } from '../utils/answers';
+import { resolveOptionAnswer, writtenAnswersMatch } from '../utils/answers';
 import type { Difficulty, GrammarQuestion, RepeatSentence, SpeakingEvaluation, SpeakingPrompt } from '../types';
 
 const SECTIONS = [
@@ -182,6 +182,9 @@ export default function MockSpeakingSection({
     ? resolveOptionAnswer(currentJumbledQuestion.answer, currentJumbledQuestion.options)
     : '';
   const currentJumbledAnswer = selectedAnswer ?? typedAnswer;
+  const currentJumbledIsCorrect = currentJumbledQuestion?.options
+    ? currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase()
+    : writtenAnswersMatch(currentJumbledAnswer, currentJumbledCorrectAnswer);
 
   const handleTranscript = (value: string, isFinal: boolean) => {
     if (!isFinal) return;
@@ -434,14 +437,14 @@ export default function MockSpeakingSection({
               </button>
             ) : (
               <div style={{ marginTop: 14 }}>
-                <div className={`alert ${currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`}>
-                  {currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase()
+                <div className={`alert ${currentJumbledIsCorrect ? 'alert-success' : 'alert-error'}`}>
+                  {currentJumbledIsCorrect
                     ? <><CheckCircle size={14} /> Correct!</>
                     : <>Correct answer: <strong>{currentJumbledCorrectAnswer}</strong></>}
                 </div>
                 <button
                   className="btn btn-primary"
-                  onClick={() => advanceTask(currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase() ? 1 : 0)}
+                  onClick={() => advanceTask(currentJumbledIsCorrect ? 1 : 0)}
                 >
                   {questionNumber === section.count ? 'Continue to Q&A' : 'Next Sentence'} <ArrowRight size={16} />
                 </button>

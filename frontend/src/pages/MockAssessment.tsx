@@ -1,10 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
-import { Brain, Play, Clock, CheckCircle, RefreshCw, MessageSquare } from 'lucide-react';
-import { evaluateSpeaking, generateGrammar, generateListening, getSpeakingPrompt } from '../services/api';
+import { useState, useCallback } from 'react';
+import { Brain, Play, Clock, CheckCircle, RefreshCw } from 'lucide-react';
+import { generateGrammar, generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
-import VoiceRecorder from '../components/VoiceRecorder';
-import type { GrammarQuestion, ListeningExercise, SpeakingEvaluation, SpeakingPrompt, Difficulty } from '../types';
+import MockSpeakingSection, { type MockSpeakingResult } from '../components/MockSpeakingSection';
+import type { GrammarQuestion, ListeningExercise, Difficulty } from '../types';
 
 type Phase = 'config' | 'grammar' | 'listening' | 'speaking' | 'summary';
 
@@ -31,28 +31,18 @@ export default function MockAssessment() {
   const [listeningScore, setListeningScore] = useState(0);
   const [showPassage, setShowPassage] = useState(false);
 
-  // Speaking state
-  const [speakingPrompt, setSpeakingPrompt] = useState<SpeakingPrompt | null>(null);
-  const [speakingTranscript, setSpeakingTranscript] = useState('');
-  const [speakingTextAnswer, setSpeakingTextAnswer] = useState('');
-  const [useTextAnswer, setUseTextAnswer] = useState(false);
-  const [speakingEvaluation, setSpeakingEvaluation] = useState<SpeakingEvaluation | null>(null);
-  const [evaluatingSpeaking, setEvaluatingSpeaking] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const speakingTranscriptRef = useRef('');
+  const [speakingResult, setSpeakingResult] = useState<MockSpeakingResult | null>(null);
 
   const startMock = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [gRes, lRes, sRes] = await Promise.all([
+      const [gRes, lRes] = await Promise.all([
         generateGrammar({ count: 5, difficulty, topic: 'mixed', provider: settings.provider }),
         generateListening({ difficulty, topic: 'workplace conversation', provider: settings.provider }),
-        getSpeakingPrompt({ category: 'storytelling', difficulty, provider: settings.provider }),
       ]);
       setGrammarQuestions(gRes.questions);
       setListeningEx(lRes.exercise);
-      setSpeakingPrompt(sRes.prompt);
       setGrammarIndex(0);
       setGrammarSelected(null);
       setGrammarSubmitted(false);
@@ -63,12 +53,7 @@ export default function MockAssessment() {
       setListeningSubmitted(false);
       setListeningScore(0);
       setShowPassage(false);
-      setSpeakingTranscript('');
-      speakingTranscriptRef.current = '';
-      setSpeakingTextAnswer('');
-      setUseTextAnswer(false);
-      setSpeakingEvaluation(null);
-      setRecording(false);
+      setSpeakingResult(null);
       setPhase('grammar');
     } catch (e: any) {
       setError(e.message || 'Failed to start assessment.');
@@ -116,39 +101,10 @@ export default function MockAssessment() {
     }
   };
 
-  const handleSpeakingTranscript = (transcript: string, isFinal: boolean) => {
-    if (!isFinal) return;
-    speakingTranscriptRef.current = [speakingTranscriptRef.current, transcript].filter(Boolean).join(' ').trim();
-    setSpeakingTranscript(speakingTranscriptRef.current);
-  };
-
-  const submitSpeaking = async () => {
-    if (!speakingPrompt) return;
-    const answer = useTextAnswer ? speakingTextAnswer : speakingTranscript;
-    if (!answer.trim()) return;
-
-    setEvaluatingSpeaking(true);
-    setError('');
-    try {
-      const result = await evaluateSpeaking({
-        question: speakingPrompt.question,
-        transcript: answer,
-        language: settings.feedbackLanguage,
-        provider: settings.provider,
-      });
-      setSpeakingEvaluation(result.evaluation);
-      setPhase('summary');
-    } catch (e: any) {
-      setError(e.message || 'Failed to evaluate your speaking response.');
-    } finally {
-      setEvaluatingSpeaking(false);
-    }
-  };
-
   const grammarPct = grammarQuestions.length ? grammarScore / grammarQuestions.length : 0;
   const listeningQuestionCount = listeningEx?.questions.length || 0;
   const listeningPct = listeningQuestionCount ? listeningScore / listeningQuestionCount : 0;
-  const speakingPct = (speakingEvaluation?.overall_score || 0) / 10;
+  const speakingPct = (speakingResult?.percentage || 0) / 100;
   const pct = Math.round(((grammarPct + listeningPct + speakingPct) / 3) * 100);
 
   return (
@@ -166,7 +122,7 @@ export default function MockAssessment() {
 
       {/* Config */}
       {phase === 'config' && (
-        <div className="card card-elevated" style={{ maxWidth: 520 }}>
+        <div className="card card-elevated" style={{ maxWidth: 640 }}>
           <div className="card-title" style={{ marginBottom: 20 }}>Configure Your Mock Test</div>
           <div className="form-group" style={{ marginBottom: 20 }}>
             <label>Difficulty Level</label>
@@ -181,7 +137,7 @@ export default function MockAssessment() {
             {[
               { icon: '📝', label: '5 Grammar Questions', time: '~5 min' },
               { icon: '🎧', label: '1 Listening Passage + Questions', time: '~5 min' },
-              { icon: '💬', label: 'Speaking: Q&A / Storytelling', time: '~2 min' },
+              { icon: '💬', label: 'Speaking: 5 sub-sections, 60 questions', time: '58 min shared' },
             ].map((item, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -194,6 +150,34 @@ export default function MockAssessment() {
                 </span>
               </div>
             ))}
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: 8, marginTop: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-surface)' }}>
+                    {['Speaking sub-section', 'Questions', 'Time'].map(label => (
+                      <th key={label} style={{ padding: '9px 10px', color: 'var(--text-secondary)', fontWeight: 600, borderBottom: '1px solid var(--border-color)' }}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Reading Sentences', 8],
+                    ['Repeat Sentences', 16],
+                    ['Jumbled Sentences', 10],
+                    ['Q&A', 24],
+                    ['Storytelling', 2],
+                  ].map(([label, count]) => (
+                    <tr key={label}>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>{label}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>{count}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>58 min</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
           {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
           <button className="btn btn-primary btn-lg w-full" onClick={startMock} disabled={loading}>
@@ -326,64 +310,16 @@ export default function MockAssessment() {
       )}
 
       {/* Speaking phase */}
-      {phase === 'speaking' && speakingPrompt && (
-        <div style={{ maxWidth: 680 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>💬 Speaking: Q&A / Storytelling</span>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Final section</span>
-          </div>
-          <div className="progress-bar" style={{ marginBottom: 20 }}>
-            <div className="progress-bar-fill" style={{ width: '100%' }} />
-          </div>
-          <div className="card card-elevated fade-in">
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 20 }}>
-              <MessageSquare size={20} color="var(--text-primary)" style={{ flexShrink: 0, marginTop: 3 }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase' }}>
-                  Speaking prompt
-                </div>
-                <p style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.6 }}>{speakingPrompt.question}</p>
-              </div>
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, marginBottom: 12 }}>
-              <input type="checkbox" checked={useTextAnswer} onChange={e => setUseTextAnswer(e.target.checked)} />
-              Type my answer instead of speaking
-            </label>
-            {useTextAnswer ? (
-              <textarea
-                className="textarea"
-                placeholder="Type your response here..."
-                value={speakingTextAnswer}
-                onChange={e => setSpeakingTextAnswer(e.target.value)}
-                rows={5}
-              />
-            ) : (
-              <VoiceRecorder
-                onTranscript={handleSpeakingTranscript}
-                onRecordingStart={() => setRecording(true)}
-                onRecordingComplete={() => setRecording(false)}
-                onCancel={() => setRecording(false)}
-                label="Record My Answer"
-              />
-            )}
-            {speakingTranscript && !useTextAnswer && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg-surface)', borderRadius: 8, fontSize: 14, lineHeight: 1.6 }}>
-                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>Your response:</div>
-                {speakingTranscript}
-              </div>
-            )}
-            {error && <div className="alert alert-error" style={{ marginTop: 12 }}>{error}</div>}
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: 16 }}
-              onClick={submitSpeaking}
-              disabled={evaluatingSpeaking || recording || !(useTextAnswer ? speakingTextAnswer.trim() : speakingTranscript.trim())}
-            >
-              {evaluatingSpeaking ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Evaluating…</> : 'Finish Speaking Section'}
-            </button>
-          </div>
-        </div>
+      {phase === 'speaking' && (
+        <MockSpeakingSection
+          difficulty={difficulty}
+          provider={settings.provider}
+          feedbackLanguage={settings.feedbackLanguage}
+          onComplete={result => {
+            setSpeakingResult(result);
+            setPhase('summary');
+          }}
+        />
       )}
 
       {/* Summary */}
@@ -414,9 +350,23 @@ export default function MockAssessment() {
             </div>
             <div style={{ padding: '12px', background: 'var(--bg-surface)', borderRadius: 8 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Speaking</div>
-              <div style={{ fontWeight: 700, fontSize: 18 }}>{speakingEvaluation?.overall_score || 0}/10</div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>
+                {speakingResult?.totalScore.toFixed(1) || '0'}/{speakingResult?.totalPossible || 60}
+              </div>
             </div>
           </div>
+          {speakingResult && (
+            <div style={{ marginBottom: 20, padding: 14, background: 'var(--bg-surface)', borderRadius: 8, textAlign: 'left' }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Speaking sub-section scores</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+                <span>Reading: {speakingResult.readingScore.toFixed(1)}/8</span>
+                <span>Repeat: {speakingResult.repeatScore.toFixed(1)}/16</span>
+                <span>Jumbled: {speakingResult.jumbledScore}/10</span>
+                <span>Q&amp;A: {speakingResult.qaScore.toFixed(1)}/24</span>
+                <span>Storytelling: {speakingResult.storytellingScore.toFixed(1)}/2</span>
+              </div>
+            </div>
+          )}
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24 }}>
             {pct >= 80 ? 'Excellent performance! Keep it up.' : pct >= 60 ? 'Good work! Review your mistakes and practise more.' : 'Keep practising all three sections: grammar, listening, and speaking.'}
           </p>

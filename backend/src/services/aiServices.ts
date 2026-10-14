@@ -67,15 +67,19 @@ export async function generateGrammarQuestions(
   difficulty: 'easy' | 'medium' | 'hard',
   topic: string,
   provider: AIProvider,
-  recentIds: string[] = []
+  recentIds: string[] = [],
+  questionType?: GrammarQuestion['type']
 ): Promise<GrammarQuestion[]> {
   const avoidHint = recentIds.length > 0 ? `Avoid repeating questions with IDs: ${recentIds.slice(-10).join(', ')}.` : '';
+  const typeHint = questionType
+    ? `Every question must have the type "${questionType}". Do not generate questions of any other type.`
+    : 'Types to include: fill-blank, multiple-choice, error-identification, sentence-correction, sentence-ordering.';
   const prompt = `Generate ${count} English grammar practice questions for a student preparing for Cognizant GenC English assessment.
 Difficulty: ${difficulty}. Topic focus: ${topic}.
 ${avoidHint}
 
 Each question must have a unique id (short slug like "tense-q1-abc").
-Types to include: fill-blank, multiple-choice, error-identification, sentence-correction, sentence-ordering.
+${typeHint}
 For multiple-choice include exactly 4 options.
 For fill-blank, mark the blank with _____.
 Do NOT include the answer in the question text.

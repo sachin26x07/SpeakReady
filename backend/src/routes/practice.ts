@@ -24,12 +24,13 @@ router.post('/grammar/generate', asyncHandler(async (req: Request, res: Response
     count: z.number().min(1).max(20).default(5),
     difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
     topic: z.string().default('mixed'),
+    questionType: z.enum(['fill-blank', 'multiple-choice', 'error-identification', 'sentence-ordering', 'sentence-correction']).optional(),
     provider: z.enum(['groq', 'gemini']).default('gemini'),
     recentIds: z.array(z.string()).default([]),
   });
   const body = schema.parse(req.body);
   const questions = await generateGrammarQuestions(
-    body.count, body.difficulty, body.topic, body.provider as AIProvider, body.recentIds
+    body.count, body.difficulty, body.topic, body.provider as AIProvider, body.recentIds, body.questionType
   );
   res.json({ questions });
 }));

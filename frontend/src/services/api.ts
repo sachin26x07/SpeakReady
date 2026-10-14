@@ -81,6 +81,7 @@ export async function generateGrammar(params: {
   count?: number;
   difficulty?: 'easy' | 'medium' | 'hard';
   topic?: string;
+  questionType?: 'fill-blank' | 'multiple-choice' | 'error-identification' | 'sentence-ordering' | 'sentence-correction';
   provider: string;
   recentIds?: string[];
 }) {

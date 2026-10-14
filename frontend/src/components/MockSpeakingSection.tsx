@@ -10,6 +10,7 @@ import {
 } from '../services/api';
 import AudioPlayer from './AudioPlayer';
 import VoiceRecorder from './VoiceRecorder';
+import { resolveOptionAnswer } from '../utils/answers';
 import type { Difficulty, GrammarQuestion, RepeatSentence, SpeakingEvaluation, SpeakingPrompt } from '../types';
 
 const SECTIONS = [
@@ -177,6 +178,9 @@ export default function MockSpeakingSection({
   const currentReadingSentence = readingSentences[taskIndex];
   const currentRepeatSentence = repeatSentences[taskIndex];
   const currentJumbledQuestion = jumbledQuestions[taskIndex];
+  const currentJumbledCorrectAnswer = currentJumbledQuestion
+    ? resolveOptionAnswer(currentJumbledQuestion.answer, currentJumbledQuestion.options)
+    : '';
   const currentJumbledAnswer = selectedAnswer ?? typedAnswer;
 
   const handleTranscript = (value: string, isFinal: boolean) => {
@@ -402,7 +406,7 @@ export default function MockSpeakingSection({
               currentJumbledQuestion.options.map(option => (
                 <button
                   key={option}
-                  className={`option-btn${selectedAnswer === option ? ' selected' : ''}${jumbledSubmitted && option.toLowerCase() === currentJumbledQuestion.answer.toLowerCase() ? ' correct' : ''}${jumbledSubmitted && selectedAnswer === option && option.toLowerCase() !== currentJumbledQuestion.answer.toLowerCase() ? ' incorrect' : ''}`}
+                  className={`option-btn${selectedAnswer === option ? ' selected' : ''}${jumbledSubmitted && option.toLowerCase() === currentJumbledCorrectAnswer.toLowerCase() ? ' correct' : ''}${jumbledSubmitted && selectedAnswer === option && option.toLowerCase() !== currentJumbledCorrectAnswer.toLowerCase() ? ' incorrect' : ''}`}
                   onClick={() => !jumbledSubmitted && setSelectedAnswer(option)}
                   disabled={jumbledSubmitted}
                 >
@@ -430,14 +434,14 @@ export default function MockSpeakingSection({
               </button>
             ) : (
               <div style={{ marginTop: 14 }}>
-                <div className={`alert ${currentJumbledAnswer.toLowerCase() === currentJumbledQuestion.answer.toLowerCase() ? 'alert-success' : 'alert-error'}`}>
-                  {currentJumbledAnswer.toLowerCase() === currentJumbledQuestion.answer.toLowerCase()
+                <div className={`alert ${currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`}>
+                  {currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase()
                     ? <><CheckCircle size={14} /> Correct!</>
-                    : <>Correct answer: <strong>{currentJumbledQuestion.answer}</strong></>}
+                    : <>Correct answer: <strong>{currentJumbledCorrectAnswer}</strong></>}
                 </div>
                 <button
                   className="btn btn-primary"
-                  onClick={() => advanceTask(currentJumbledAnswer.toLowerCase() === currentJumbledQuestion.answer.toLowerCase() ? 1 : 0)}
+                  onClick={() => advanceTask(currentJumbledAnswer.trim().toLowerCase() === currentJumbledCorrectAnswer.trim().toLowerCase() ? 1 : 0)}
                 >
                   {questionNumber === section.count ? 'Continue to Q&A' : 'Next Sentence'} <ArrowRight size={16} />
                 </button>

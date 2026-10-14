@@ -3,6 +3,7 @@ import { RefreshCw, Eye, EyeOff, CheckCircle, XCircle, Volume2 } from 'lucide-re
 import { generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
+import { resolveOptionAnswer } from '../utils/answers';
 import type { ListeningExercise, Difficulty } from '../types';
 
 const TOPICS = [
@@ -49,7 +50,8 @@ export default function ListeningComprehension() {
     if (!exercise) return;
     let correct = 0;
     exercise.questions.forEach(q => {
-      if ((answers[q.id] || '').toLowerCase().trim() === q.answer.toLowerCase().trim()) correct++;
+      const correctAnswer = resolveOptionAnswer(q.answer, q.options);
+      if ((answers[q.id] || '').toLowerCase().trim() === correctAnswer.toLowerCase().trim()) correct++;
     });
     setScore(correct);
     setSubmitted(true);
@@ -178,7 +180,9 @@ export default function ListeningComprehension() {
 
           {/* Questions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {exercise.questions.map((q, i) => (
+            {exercise.questions.map((q, i) => {
+              const correctAnswer = resolveOptionAnswer(q.answer, q.options);
+              return (
               <div key={q.id} className="card">
                 <p style={{ fontWeight: 600, marginBottom: 12, fontSize: 15 }}>
                   Q{i + 1}. {q.question}
@@ -188,7 +192,7 @@ export default function ListeningComprehension() {
                     {q.options.map(opt => {
                       let cls = 'option-btn';
                       if (submitted) {
-                        if (opt.toLowerCase() === q.answer.toLowerCase()) cls += ' correct';
+                        if (opt.toLowerCase() === correctAnswer.toLowerCase()) cls += ' correct';
                         else if (opt === answers[q.id]) cls += ' incorrect';
                       } else if (opt === answers[q.id]) cls += ' selected';
                       return (
@@ -198,8 +202,8 @@ export default function ListeningComprehension() {
                           onClick={() => !submitted && setAnswers(a => ({ ...a, [q.id]: opt }))}
                           disabled={submitted}
                         >
-                          {submitted && opt.toLowerCase() === q.answer.toLowerCase() && <CheckCircle size={14} color="var(--color-success)" />}
-                          {submitted && opt === answers[q.id] && opt.toLowerCase() !== q.answer.toLowerCase() && <XCircle size={14} color="var(--color-error)" />}
+                          {submitted && opt.toLowerCase() === correctAnswer.toLowerCase() && <CheckCircle size={14} color="var(--color-primary-800)" />}
+                          {submitted && opt === answers[q.id] && opt.toLowerCase() !== correctAnswer.toLowerCase() && <XCircle size={14} color="var(--color-error)" />}
                           {opt}
                         </button>
                       );
@@ -215,16 +219,17 @@ export default function ListeningComprehension() {
                   />
                 )}
                 {submitted && (
-                  <div className={`alert ${answers[q.id]?.toLowerCase() === q.answer.toLowerCase() ? 'alert-success' : 'alert-error'} fade-in`} style={{ marginTop: 10 }}>
-                    {answers[q.id]?.toLowerCase() === q.answer.toLowerCase()
+                  <div className={`alert ${answers[q.id]?.trim().toLowerCase() === correctAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'} fade-in`} style={{ marginTop: 10 }}>
+                    {answers[q.id]?.trim().toLowerCase() === correctAnswer.trim().toLowerCase()
                       ? <><CheckCircle size={14} /> Correct!</>
-                      : <><XCircle size={14} /> Incorrect. Answer: <strong>{q.answer}</strong></>
+                      : <><XCircle size={14} /> Incorrect. Answer: <strong>{correctAnswer}</strong></>
                     }
                     <div style={{ marginTop: 4, fontSize: 13 }}>{q.explanation}</div>
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>

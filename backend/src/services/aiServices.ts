@@ -81,6 +81,7 @@ ${avoidHint}
 Each question must have a unique id (short slug like "tense-q1-abc").
 ${typeHint}
 For multiple-choice include exactly 4 options.
+For every multiple-choice question, set "answer" to the exact full text of the correct option, not its letter or position.
 For fill-blank, mark the blank with _____.
 Do NOT include the answer in the question text.
 
@@ -91,8 +92,8 @@ Return ONLY valid JSON in this exact format:
       "id": "unique-id",
       "type": "multiple-choice",
       "question": "...",
-      "options": ["A", "B", "C", "D"],
-      "answer": "A",
+      "options": ["will have completed", "completed", "will complete", "has completed"],
+      "answer": "will have completed",
       "explanation": "Detailed grammar explanation...",
       "rule": "The grammar rule name/concept",
       "examples": ["Example 1", "Example 2"],
@@ -142,6 +143,7 @@ Difficulty: ${difficulty}. Topic: ${topic}.
 
 Create a realistic short passage (3-6 sentences for easy, 6-10 for medium, 10-15 for hard) that could be read aloud.
 Include 2-3 comprehension questions.
+For multiple-choice questions, set "answer" to the exact full text of the correct option, not its letter or position.
 
 Return ONLY valid JSON:
 {

@@ -23,7 +23,7 @@
   --color-accent-600: #d97706;
 
   /* Semantic colors */
-  --color-success: #10b981;
+  --color-success: #047857;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
   --color-info: #3b82f6;
@@ -104,6 +104,7 @@
   --text-muted: #6ee7b7;
   --text-sidebar: #d1fae5;
   --text-sidebar-muted: #6ee7b7;
+  --color-success: #34d399;
 
   --border-color: #2d4035;
   --border-color-strong: #3d5545;

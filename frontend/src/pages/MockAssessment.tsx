@@ -4,6 +4,7 @@ import { generateGrammar, generateListening } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import AudioPlayer from '../components/AudioPlayer';
 import MockSpeakingSection, { type MockSpeakingResult } from '../components/MockSpeakingSection';
+import { resolveOptionAnswer } from '../utils/answers';
 import type { GrammarQuestion, ListeningExercise, Difficulty } from '../types';
 
 type Phase = 'config' | 'grammar' | 'listening' | 'speaking' | 'summary';
@@ -64,11 +65,13 @@ export default function MockAssessment() {
 
   const gq = grammarQuestions[grammarIndex];
   const lq = listeningEx?.questions[listeningIndex];
+  const grammarCorrectAnswer = gq ? resolveOptionAnswer(gq.answer, gq.options) : '';
+  const listeningCorrectAnswer = lq ? resolveOptionAnswer(lq.answer, lq.options) : '';
 
   const submitGrammar = () => {
     if (!gq || !grammarSelected) return;
     setGrammarSubmitted(true);
-    if (grammarSelected.toLowerCase() === gq.answer.toLowerCase()) {
+    if (grammarSelected.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()) {
       setGrammarScore(s => s + 1);
     }
   };
@@ -86,7 +89,7 @@ export default function MockAssessment() {
   const submitListening = () => {
     if (!lq || !listeningSelected) return;
     setListeningSubmitted(true);
-    const correct = listeningSelected.toLowerCase() === lq.answer.toLowerCase();
+    const correct = listeningSelected.trim().toLowerCase() === listeningCorrectAnswer.trim().toLowerCase();
     if (correct) setListeningScore(s => s + 1);
     setListeningAnswers((prev: string[]) => [...prev, listeningSelected]);
   };
@@ -204,7 +207,7 @@ export default function MockAssessment() {
             {gq.options?.map(opt => {
               let cls = 'option-btn';
               if (grammarSubmitted) {
-                if (opt.toLowerCase() === gq.answer.toLowerCase()) cls += ' correct';
+                if (opt.toLowerCase() === grammarCorrectAnswer.toLowerCase()) cls += ' correct';
                 else if (opt === grammarSelected) cls += ' incorrect';
               } else if (opt === grammarSelected) cls += ' selected';
               return (
@@ -218,10 +221,10 @@ export default function MockAssessment() {
                 <button className="btn btn-primary" onClick={submitGrammar} disabled={!grammarSelected}>Submit</button>
               ) : (
                 <>
-                  <div className={`alert ${grammarSelected?.toLowerCase() === gq.answer.toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
-                    {grammarSelected?.toLowerCase() === gq.answer.toLowerCase()
+                  <div className={`alert ${grammarSelected?.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
+                    {grammarSelected?.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()
                       ? <><CheckCircle size={14} /> Correct!</>
-                      : <>❌ Answer: <strong>{gq.answer}</strong></>}
+                      : <>❌ Answer: <strong>{grammarCorrectAnswer}</strong></>}
                   </div>
                   <button className="btn btn-primary" onClick={nextGrammar}>
                     {grammarIndex + 1 >= grammarQuestions.length ? 'Start Listening →' : 'Next →'}
@@ -275,7 +278,7 @@ export default function MockAssessment() {
             {lq.options?.map(opt => {
               let cls = 'option-btn';
               if (listeningSubmitted) {
-                if (opt.toLowerCase() === lq.answer.toLowerCase()) cls += ' correct';
+                if (opt.toLowerCase() === listeningCorrectAnswer.toLowerCase()) cls += ' correct';
                 else if (opt === listeningSelected) cls += ' incorrect';
               } else if (opt === listeningSelected) cls += ' selected';
               return (
@@ -289,10 +292,10 @@ export default function MockAssessment() {
                 <button className="btn btn-primary" onClick={submitListening} disabled={!listeningSelected}>Submit</button>
               ) : (
                 <>
-                  <div className={`alert ${listeningSelected?.toLowerCase() === lq.answer.toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
-                    {listeningSelected?.toLowerCase() === lq.answer.toLowerCase()
+                  <div className={`alert ${listeningSelected?.trim().toLowerCase() === listeningCorrectAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
+                    {listeningSelected?.trim().toLowerCase() === listeningCorrectAnswer.trim().toLowerCase()
                       ? <><CheckCircle size={14} /> Correct!</>
-                      : <>❌ Answer: <strong>{lq.answer}</strong></>}
+                      : <>❌ Answer: <strong>{listeningCorrectAnswer}</strong></>}
                   </div>
                   <button className="btn btn-primary" onClick={nextListening}>
                     {listeningIndex + 1 >= listeningEx.questions.length ? 'See Results →' : 'Next →'}

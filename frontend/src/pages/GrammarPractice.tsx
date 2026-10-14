@@ -3,6 +3,7 @@ import { RefreshCw, CheckCircle, XCircle, ArrowRight, BookOpen, Lightbulb } from
 import { generateGrammar } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
 import { recordGrammarResult, getProgress } from '../services/storage';
+import { resolveOptionAnswer } from '../utils/answers';
 import type { GrammarQuestion, Difficulty } from '../types';
 
 const TOPICS = [
@@ -86,20 +87,22 @@ export default function GrammarPractice() {
   }, [config, settings.provider, progress.recentGrammarIds]);
 
   const q = questions[current];
+  const correctAnswer = q ? resolveOptionAnswer(q.answer, q.options) : '';
 
   const handleSubmit = () => {
     if (!q) return;
     const answer = q.type === 'multiple-choice' ? selected : textInput.trim();
     if (!answer) return;
     setSubmitted(true);
-    const isCorrect = answer.toLowerCase() === q.answer.toLowerCase();
+    const expectedAnswer = resolveOptionAnswer(q.answer, q.options);
+    const isCorrect = answer.trim().toLowerCase() === expectedAnswer.trim().toLowerCase();
     if (isCorrect) setScore(s => s + 1);
 
     recordGrammarResult({
       questionId: q.id,
       question: q.question,
       userAnswer: answer,
-      correctAnswer: q.answer,
+      correctAnswer: expectedAnswer,
       isCorrect,
       topic: q.topic,
       timestamp: Date.now(),
@@ -221,7 +224,7 @@ export default function GrammarPractice() {
                 {q.options.map(opt => {
                   let cls = 'option-btn';
                   if (submitted) {
-                    if (opt.toLowerCase() === q.answer.toLowerCase()) cls += ' correct';
+                    if (opt.toLowerCase() === correctAnswer.toLowerCase()) cls += ' correct';
                     else if (opt === selected) cls += ' incorrect';
                   } else if (opt === selected) {
                     cls += ' selected';
@@ -233,8 +236,8 @@ export default function GrammarPractice() {
                       onClick={() => !submitted && setSelected(opt)}
                       disabled={submitted}
                     >
-                      {submitted && opt.toLowerCase() === q.answer.toLowerCase() && <CheckCircle size={14} color="var(--color-success)" />}
-                      {submitted && opt === selected && opt.toLowerCase() !== q.answer.toLowerCase() && <XCircle size={14} color="var(--color-error)" />}
+                      {submitted && opt.toLowerCase() === correctAnswer.toLowerCase() && <CheckCircle size={14} color="var(--color-primary-800)" />}
+                      {submitted && opt === selected && opt.toLowerCase() !== correctAnswer.toLowerCase() && <XCircle size={14} color="var(--color-error)" />}
                       {opt}
                     </button>
                   );
@@ -281,10 +284,10 @@ export default function GrammarPractice() {
             {/* Explanation */}
             {submitted && (
               <div className="fade-in" style={{ marginTop: 20 }}>
-                <div className={`alert ${(selected || textInput).toLowerCase() === q.answer.toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 12 }}>
-                  {(selected || textInput).toLowerCase() === q.answer.toLowerCase()
+                <div className={`alert ${(selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 12 }}>
+                  {(selected || textInput).trim().toLowerCase() === correctAnswer.trim().toLowerCase()
                     ? <><CheckCircle size={16} /> <strong>Correct!</strong> Well done!</>
-                    : <><XCircle size={16} /> <strong>Incorrect.</strong> The answer is: <strong>{q.answer}</strong></>
+                    : <><XCircle size={16} /> <strong>Incorrect.</strong> The answer is: <strong>{correctAnswer}</strong></>
                   }
                 </div>
                 <div className="card" style={{ background: 'var(--color-primary-50)', border: '1px solid var(--color-primary-200)' }}>

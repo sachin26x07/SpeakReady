@@ -8,6 +8,31 @@ import { resolveOptionAnswer } from '../utils/answers';
 import type { GrammarQuestion, ListeningExercise, Difficulty } from '../types';
 
 type Phase = 'config' | 'grammar' | 'listening' | 'speaking' | 'summary';
+type GrammarQuestionType = GrammarQuestion['type'];
+type GrammarAnswerMode = 'choose' | 'type';
+
+const GRAMMAR_TOPICS = [
+  'mixed',
+  'tenses',
+  'articles',
+  'adverbs',
+  'prepositions',
+  'subject-verb agreement',
+  'pronouns',
+  'active-passive voice',
+  'sentence correction',
+  'vocabulary',
+  'workplace English',
+];
+
+const GRAMMAR_QUESTION_TYPES: { value: GrammarQuestionType | 'mixed'; label: string }[] = [
+  { value: 'mixed', label: 'Mixed question types' },
+  { value: 'fill-blank', label: 'Fill in the blank' },
+  { value: 'multiple-choice', label: 'Multiple choice' },
+  { value: 'error-identification', label: 'Identify the error' },
+  { value: 'sentence-ordering', label: 'Arrange the words' },
+  { value: 'sentence-correction', label: 'Correct the sentence' },
+];
 
 export default function MockAssessment() {
   const { settings } = useSettings();
@@ -15,11 +40,15 @@ export default function MockAssessment() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [grammarTopic, setGrammarTopic] = useState('mixed');
+  const [grammarQuestionType, setGrammarQuestionType] = useState<GrammarQuestionType | 'mixed'>('mixed');
 
   // Grammar state
   const [grammarQuestions, setGrammarQuestions] = useState<GrammarQuestion[]>([]);
   const [grammarIndex, setGrammarIndex] = useState(0);
   const [grammarSelected, setGrammarSelected] = useState<string | null>(null);
+  const [grammarTypedAnswer, setGrammarTypedAnswer] = useState('');
+  const [grammarAnswerMode, setGrammarAnswerMode] = useState<GrammarAnswerMode>('choose');
   const [grammarSubmitted, setGrammarSubmitted] = useState(false);
   const [grammarScore, setGrammarScore] = useState(0);
 
@@ -39,13 +68,22 @@ export default function MockAssessment() {
     setError('');
     try {
       const [gRes, lRes] = await Promise.all([
-        generateGrammar({ count: 5, difficulty, topic: 'mixed', provider: settings.provider }),
+        generateGrammar({
+          count: 5,
+          difficulty,
+          topic: grammarTopic,
+          questionType: grammarQuestionType === 'mixed' ? undefined : grammarQuestionType,
+          provider: settings.provider,
+        }),
         generateListening({ difficulty, topic: 'workplace conversation', provider: settings.provider }),
       ]);
+      if (!gRes.questions.length) throw new Error('No grammar questions were generated. Please try again.');
       setGrammarQuestions(gRes.questions);
       setListeningEx(lRes.exercise);
       setGrammarIndex(0);
       setGrammarSelected(null);
+      setGrammarTypedAnswer('');
+      setGrammarAnswerMode('choose');
       setGrammarSubmitted(false);
       setGrammarScore(0);
       setListeningIndex(0);
@@ -61,17 +99,24 @@ export default function MockAssessment() {
     } finally {
       setLoading(false);
     }
-  }, [difficulty, settings.provider]);
+  }, [difficulty, grammarQuestionType, grammarTopic, settings.provider]);
 
   const gq = grammarQuestions[grammarIndex];
   const lq = listeningEx?.questions[listeningIndex];
   const grammarCorrectAnswer = gq ? resolveOptionAnswer(gq.answer, gq.options) : '';
+  const grammarCanChoose = Boolean(gq?.options?.length);
+  const grammarUserAnswer = grammarCanChoose && grammarAnswerMode === 'choose'
+    ? grammarSelected || ''
+    : gq ? resolveOptionAnswer(grammarTypedAnswer.trim(), gq.options) : grammarTypedAnswer.trim();
+  const grammarIsCorrect = grammarUserAnswer.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase();
   const listeningCorrectAnswer = lq ? resolveOptionAnswer(lq.answer, lq.options) : '';
 
   const submitGrammar = () => {
-    if (!gq || !grammarSelected) return;
+    if (!gq) return;
+    const answer = grammarUserAnswer;
+    if (!answer) return;
     setGrammarSubmitted(true);
-    if (grammarSelected.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()) {
+    if (answer.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()) {
       setGrammarScore(s => s + 1);
     }
   };
@@ -82,6 +127,8 @@ export default function MockAssessment() {
     } else {
       setGrammarIndex(i => i + 1);
       setGrammarSelected(null);
+      setGrammarTypedAnswer('');
+      setGrammarAnswerMode('choose');
       setGrammarSubmitted(false);
     }
   };
@@ -134,6 +181,28 @@ export default function MockAssessment() {
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+            <div className="form-group" style={{ flex: '1 1 220px' }}>
+              <label>Grammar Topic</label>
+              <select className="select" value={grammarTopic} onChange={e => setGrammarTopic(e.target.value)}>
+                {GRAMMAR_TOPICS.map(topic => (
+                  <option key={topic} value={topic}>{topic.charAt(0).toUpperCase() + topic.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: '1 1 220px' }}>
+              <label>Grammar Question Type</label>
+              <select
+                className="select"
+                value={grammarQuestionType}
+                onChange={e => setGrammarQuestionType(e.target.value as GrammarQuestionType | 'mixed')}
+              >
+                {GRAMMAR_QUESTION_TYPES.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>What's included:</div>
@@ -203,26 +272,66 @@ export default function MockAssessment() {
             <div className="progress-bar-fill" style={{ width: `${(grammarIndex / grammarQuestions.length) * 100}%` }} />
           </div>
           <div className="card card-elevated fade-in">
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              {gq.topic} · {GRAMMAR_QUESTION_TYPES.find(type => type.value === gq.type)?.label || 'Grammar question'}
+            </div>
             <p style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.6, marginBottom: 16 }}>{gq.question}</p>
-            {gq.options?.map(opt => {
-              let cls = 'option-btn';
-              if (grammarSubmitted) {
-                if (opt.toLowerCase() === grammarCorrectAnswer.toLowerCase()) cls += ' correct';
-                else if (opt === grammarSelected) cls += ' incorrect';
-              } else if (opt === grammarSelected) cls += ' selected';
-              return (
-                <button key={opt} className={cls} onClick={() => !grammarSubmitted && setGrammarSelected(opt)} disabled={grammarSubmitted}>
-                  {opt}
+            {grammarCanChoose && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${grammarAnswerMode === 'choose' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setGrammarAnswerMode('choose')}
+                  disabled={grammarSubmitted}
+                >
+                  Choose an option
                 </button>
-              );
-            })}
+                <button
+                  type="button"
+                  className={`btn btn-sm ${grammarAnswerMode === 'type' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setGrammarAnswerMode('type')}
+                  disabled={grammarSubmitted}
+                >
+                  Type your answer
+                </button>
+              </div>
+            )}
+            {grammarCanChoose && grammarAnswerMode === 'choose' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {gq.options?.map(opt => {
+                  let cls = 'option-btn';
+                  if (grammarSubmitted) {
+                    if (opt.toLowerCase() === grammarCorrectAnswer.toLowerCase()) cls += ' correct';
+                    else if (opt === grammarSelected) cls += ' incorrect';
+                  } else if (opt === grammarSelected) cls += ' selected';
+                  return (
+                    <button key={opt} className={cls} onClick={() => !grammarSubmitted && setGrammarSelected(opt)} disabled={grammarSubmitted}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="form-group">
+                <label htmlFor="mock-grammar-answer">Your answer</label>
+                <input
+                  id="mock-grammar-answer"
+                  className="input"
+                  value={grammarTypedAnswer}
+                  onChange={e => setGrammarTypedAnswer(e.target.value)}
+                  placeholder={gq.type === 'sentence-correction' ? 'Type the corrected sentence...' : gq.type === 'sentence-ordering' ? 'Type the words in the correct order...' : 'Type your answer...'}
+                  disabled={grammarSubmitted}
+                  onKeyDown={e => e.key === 'Enter' && !grammarSubmitted && submitGrammar()}
+                />
+              </div>
+            )}
             <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
               {!grammarSubmitted ? (
-                <button className="btn btn-primary" onClick={submitGrammar} disabled={!grammarSelected}>Submit</button>
+                <button className="btn btn-primary" onClick={submitGrammar} disabled={!grammarUserAnswer.trim()}>Submit</button>
               ) : (
                 <>
-                  <div className={`alert ${grammarSelected?.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase() ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
-                    {grammarSelected?.trim().toLowerCase() === grammarCorrectAnswer.trim().toLowerCase()
+                  <div className={`alert ${grammarIsCorrect ? 'alert-success' : 'alert-error'}`} style={{ flex: 1 }}>
+                    {grammarIsCorrect
                       ? <><CheckCircle size={14} /> Correct!</>
                       : <>❌ Answer: <strong>{grammarCorrectAnswer}</strong></>}
                   </div>

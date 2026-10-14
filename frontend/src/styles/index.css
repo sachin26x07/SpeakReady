@@ -16,6 +16,8 @@
   --color-primary-700: #047857;
   --color-primary-800: #065f46;
   --color-primary-900: #064e3b;
+  --color-primary-action: #047857;
+  --color-primary-action-hover: #065f46;
 
   /* Accent: Warm Amber */
   --color-accent-400: #fbbf24;
@@ -89,6 +91,18 @@
 
 /* Dark mode */
 [data-theme="dark"] {
+  --color-primary-50: #1a2620;
+  --color-primary-100: #243530;
+  --color-primary-200: #3d5545;
+  --color-primary-400: #6ee7b7;
+  --color-primary-500: #34d399;
+  --color-primary-600: #6ee7b7;
+  --color-primary-700: #a7f3d0;
+  --color-primary-800: #d1fae5;
+  --color-primary-900: #ecfdf5;
+  --color-primary-action: #047857;
+  --color-primary-action-hover: #065f46;
+
   --bg-page: #0f1a14;
   --bg-card: #1a2620;
   --bg-card-hover: #1f2e26;
@@ -254,7 +268,7 @@ input, textarea, select { font-family: inherit; }
 }
 
 .nav-item.active {
-  background: var(--color-primary-700);
+  background: var(--color-primary-action);
   color: var(--text-inverse);
 }
 
@@ -380,11 +394,11 @@ input, textarea, select { font-family: inherit; }
 }
 
 .btn-primary {
-  background: var(--color-primary-700);
+  background: var(--color-primary-action);
   color: var(--text-inverse);
   box-shadow: 0 1px 3px rgba(4,120,87,0.3);
 }
-.btn-primary:hover { background: var(--color-primary-800); box-shadow: 0 2px 8px rgba(6,95,70,0.4); transform: translateY(-1px); }
+.btn-primary:hover { background: var(--color-primary-action-hover); box-shadow: 0 2px 8px rgba(6,95,70,0.4); transform: translateY(-1px); }
 .btn-primary:active { transform: translateY(0); }
 
 .btn-secondary {
@@ -677,7 +691,7 @@ label {
 }
 
 .option-btn.selected { border-color: var(--color-primary-500); background: var(--color-primary-50); }
-.option-btn.correct { border-color: var(--color-success); background: #ecfdf5; color: var(--color-primary-800); }
+.option-btn.correct { border-color: var(--color-success); background: var(--color-primary-50); color: var(--color-primary-800); }
 .option-btn.incorrect { border-color: var(--color-error); background: #fef2f2; color: #991b1b; }
 
 [data-theme="dark"] .option-btn:hover:not(:disabled),

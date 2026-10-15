@@ -184,7 +184,7 @@ input, textarea, select { font-family: inherit; }
   display: flex;
   flex-direction: column;
   z-index: 100;
-  transition: transform var(--transition-base), width var(--transition-base);
+  transition: transform 350ms cubic-bezier(0.25, 1, 0.5, 1);
   overflow: hidden;
 }
 
@@ -296,7 +296,7 @@ input, textarea, select { font-family: inherit; }
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  transition: margin-left var(--transition-base);
+  transition: margin-left 350ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .main-content.sidebar-collapsed {

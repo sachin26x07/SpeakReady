@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { settings, updateSettings } = useSettings();
   const location = useLocation();
@@ -42,6 +42,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileDrawerOpen(false);
+    setSidebarCollapsed(true);
   }, [location.pathname]);
 
   const toggleSidebar = () => {
@@ -50,6 +51,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     } else {
       setSidebarCollapsed(prev => !prev);
     }
+  };
+
+  const handleNavClick = () => {
+    setMobileDrawerOpen(false);
+    setSidebarCollapsed(true);
   };
 
   const sections: Record<string, string> = {
@@ -76,14 +82,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileDrawerOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">
-            <Mic size={20} color="white" />
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="sidebar-logo-icon">
+              <Mic size={20} color="white" />
+            </div>
+            <div className="sidebar-logo-text">
+              <div className="sidebar-logo-name">SpeakReady AI</div>
+              <div className="sidebar-logo-tagline">Speak Confidently</div>
+            </div>
           </div>
-          <div className="sidebar-logo-text">
-            <div className="sidebar-logo-name">SpeakReady AI</div>
-            <div className="sidebar-logo-tagline">Speak Confidently</div>
-          </div>
+          <button
+            className="btn btn-ghost btn-icon"
+            onClick={toggleSidebar}
+            style={{ color: 'var(--text-sidebar)', padding: 6 }}
+            title="Close menu"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -96,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   to={item.to}
                   end={item.to === '/'}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => setMobileDrawerOpen(false)}
+                  onClick={handleNavClick}
                 >
                   <span className="nav-icon">{item.icon}</span>
                   {item.label}

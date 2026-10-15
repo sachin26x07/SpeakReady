@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   BookOpen, Headphones, Mic, GraduationCap, MessageSquare,
   FileText, Flame, TrendingUp, Target, Clock, CheckCircle,
-  ArrowRight
+  ArrowRight, BookMarked
 } from 'lucide-react';
 import { getProgress, getTodaySession, getWeeklyStats } from '../services/storage';
 import type { ProgressData, DailySession } from '../types';
@@ -14,6 +14,7 @@ const activities = [
   { icon: <Mic size={20} />, label: 'Listen & Repeat', to: '/repeat', color: '#8b5cf6', bg: '#f5f3ff', time: '10 min', key: 'repeat' },
   { icon: <GraduationCap size={20} />, label: 'Grammar', to: '/grammar', color: '#f59e0b', bg: '#fffbeb', time: '5 min', key: 'grammar' },
   { icon: <MessageSquare size={20} />, label: 'Speaking', to: '/speaking', color: '#ef4444', bg: '#fef2f2', time: '5 min', key: 'speaking' },
+  { icon: <BookMarked size={20} />, label: 'Saved Vocabulary', to: '/vocabulary', color: '#059669', bg: '#ecfdf5', time: 'review', key: 'vocabulary' },
   { icon: <FileText size={20} />, label: 'Resume Interview', to: '/interview', color: '#0891b2', bg: '#ecfeff', time: 'anytime', key: 'interview' },
 ];
 

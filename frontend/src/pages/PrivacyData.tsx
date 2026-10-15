@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Shield, Download, Upload, Trash2, AlertTriangle, Info, CheckCircle } from 'lucide-react';
-import { exportData, importData, resetAllData, getProgress } from '../services/storage';
+import { exportData, importData, resetAllData, getProgress, getSavedVocabulary } from '../services/storage';
 
 export default function PrivacyData() {
   const [importJson, setImportJson] = useState('');
@@ -106,6 +106,10 @@ export default function PrivacyData() {
           <div style={{ fontSize: 13 }}>
             <span style={{ color: 'var(--text-muted)' }}>Grammar results:</span>{' '}
             <strong>{progress.grammarResults.length}</strong>
+          </div>
+          <div style={{ fontSize: 13 }}>
+            <span style={{ color: 'var(--text-muted)' }}>Saved vocabulary:</span>{' '}
+            <strong>{getSavedVocabulary().length} words</strong>
           </div>
           <div style={{ fontSize: 13 }}>
             <span style={{ color: 'var(--text-muted)' }}>Approx. data size:</span>{' '}

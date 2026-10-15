@@ -200,6 +200,21 @@ export interface VocabularyWord {
   memory_trick: string;
 }
 
+export interface SavedVocabularyItem {
+  id: string;
+  word: string;
+  meaning: string;
+  examples: string[];
+  pronunciation?: string;
+  part_of_speech?: string;
+  simple_definition?: string;
+  synonyms?: string[];
+  antonyms?: string[];
+  usage_tip?: string;
+  memory_trick?: string;
+  savedAt: number;
+}
+
 // ============================================================
 // Interview types
 // ============================================================

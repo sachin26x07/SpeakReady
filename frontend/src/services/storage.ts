@@ -4,6 +4,7 @@ import type {
   DailySession,
   GrammarResult,
   ResumeData,
+  SavedVocabularyItem,
 } from '../types';
 
 // ============================================================
@@ -16,6 +17,7 @@ const KEYS = {
   resume: 'speakready_resume',
   recentGrammarIds: 'speakready_recent_grammar',
   recentSentences: 'speakready_recent_sentences',
+  vocabulary: 'speakready_saved_vocabulary',
 } as const;
 
 // ============================================================
@@ -224,6 +226,62 @@ export function clearResume(): void {
 }
 
 // ============================================================
+// Saved Vocabulary
+// ============================================================
+
+export function getSavedVocabulary(): SavedVocabularyItem[] {
+  return load<SavedVocabularyItem[]>(KEYS.vocabulary, []);
+}
+
+export function saveVocabularyItem(
+  item: Omit<SavedVocabularyItem, 'id' | 'savedAt'> & { id?: string; savedAt?: number }
+): SavedVocabularyItem {
+  const current = getSavedVocabulary();
+  const normalizedWord = item.word.trim();
+  const now = item.savedAt || Date.now();
+  const id = item.id || `vocab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  const newItem: SavedVocabularyItem = {
+    ...item,
+    id,
+    word: normalizedWord,
+    meaning: item.meaning.trim(),
+    examples: (item.examples || []).map(e => e.trim()).filter(Boolean),
+    savedAt: now,
+  };
+
+  // If item with same id or same word (case-insensitive) exists, update it
+  const existingIndex = current.findIndex(
+    w => w.id === id || w.word.toLowerCase() === normalizedWord.toLowerCase()
+  );
+
+  let updated: SavedVocabularyItem[];
+  if (existingIndex >= 0) {
+    updated = [...current];
+    updated[existingIndex] = { ...current[existingIndex], ...newItem, id: current[existingIndex].id };
+  } else {
+    // Add to beginning of list
+    updated = [newItem, ...current];
+  }
+
+  save(KEYS.vocabulary, updated);
+  return newItem;
+}
+
+export function deleteSavedVocabularyItem(id: string): void {
+  const current = getSavedVocabulary();
+  const updated = current.filter(w => w.id !== id);
+  save(KEYS.vocabulary, updated);
+}
+
+export function isVocabularySaved(word: string): boolean {
+  if (!word) return false;
+  const current = getSavedVocabulary();
+  const target = word.trim().toLowerCase();
+  return current.some(w => w.word.toLowerCase() === target);
+}
+
+// ============================================================
 // Export / Import / Reset
 // ============================================================
 
@@ -234,6 +292,7 @@ export function exportData(): string {
     settings: getSettings(),
     progress: getProgress(),
     resume: getResume(),
+    vocabulary: getSavedVocabulary(),
   };
   return JSON.stringify(data, null, 2);
 }
@@ -244,6 +303,7 @@ export function importData(jsonStr: string): { success: boolean; error?: string 
     if (data.settings) saveSettings({ ...DEFAULT_SETTINGS, ...data.settings });
     if (data.progress) saveProgress({ ...DEFAULT_PROGRESS, ...data.progress });
     if (data.resume) saveResume(data.resume);
+    if (Array.isArray(data.vocabulary)) save(KEYS.vocabulary, data.vocabulary);
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

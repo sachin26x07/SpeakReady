@@ -1,8 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
-import { RefreshCw, BookOpen, Eye } from 'lucide-react';
+import { RefreshCw, BookOpen, Eye, Bookmark, BookmarkCheck } from 'lucide-react';
 import { generateReading, compareTranscript } from '../services/api';
 import { useSettings } from '../context/SettingsContext';
-import { getElapsedPracticeMinutes, recordDailySession } from '../services/storage';
+import {
+  getElapsedPracticeMinutes,
+  recordDailySession,
+  saveVocabularyItem,
+  isVocabularySaved,
+} from '../services/storage';
 import AudioPlayer from '../components/AudioPlayer';
 import VoiceRecorder from '../components/VoiceRecorder';
 import type { ReadingPassage, TranscriptComparison, WordDiff } from '../types';
@@ -32,6 +37,7 @@ export default function ReadingAloud() {
   const [checking, setChecking] = useState(false);
   const [recording, setRecording] = useState(false);
   const [config, setConfig] = useState({ difficulty: 'intermediate' as 'beginner' | 'intermediate' | 'advanced', topic: 'workplace English' });
+  const [savedMap, setSavedMap] = useState<Record<string, boolean>>({});
 
   const transcriptRef = useRef('');
   const transcriptBeforeRecordingRef = useRef('');
@@ -175,16 +181,49 @@ export default function ReadingAloud() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>💡 Difficult Words:</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {passage.difficult_words.map(w => (
-                    <div key={w.word} style={{
-                      padding: '6px 12px', background: 'var(--bg-card)',
-                      border: '1px solid var(--border-color)', borderRadius: 20, fontSize: 13,
-                    }}>
-                      <strong>{w.word}</strong>
-                      <span style={{ color: 'var(--text-muted)', margin: '0 4px' }}>/{w.pronunciation}/</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>— {w.meaning}</span>
-                    </div>
-                  ))}
+                  {passage.difficult_words.map(w => {
+                    const saved = savedMap[w.word.toLowerCase()] || isVocabularySaved(w.word);
+                    return (
+                      <div
+                        key={w.word}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 20,
+                          fontSize: 13,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <strong>{w.word}</strong>
+                        <span style={{ color: 'var(--text-muted)' }}>/{w.pronunciation}/</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>— {w.meaning}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon"
+                          onClick={() => {
+                            saveVocabularyItem({
+                              word: w.word,
+                              meaning: w.meaning,
+                              pronunciation: w.pronunciation,
+                              examples: passage ? [passage.passage.slice(0, 120) + '...'] : [],
+                            });
+                            setSavedMap(prev => ({ ...prev, [w.word.toLowerCase()]: true }));
+                          }}
+                          title={saved ? 'Saved in Vocabulary' : 'Save to Vocabulary'}
+                          style={{
+                            padding: 2,
+                            marginLeft: 4,
+                            color: saved ? 'var(--color-primary-600)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {saved ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -31,7 +31,8 @@ const navItems: NavItem[] = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { settings, updateSettings } = useSettings();
   const location = useLocation();
 
@@ -40,8 +41,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [settings.darkMode]);
 
   useEffect(() => {
-    setSidebarOpen(false);
+    setMobileDrawerOpen(false);
   }, [location.pathname]);
+
+  const toggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      setMobileDrawerOpen(prev => !prev);
+    } else {
+      setSidebarCollapsed(prev => !prev);
+    }
+  };
 
   const sections: Record<string, string> = {
     main: 'Overview',
@@ -61,12 +70,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       {/* Mobile overlay */}
       <div
-        className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
-        onClick={() => setSidebarOpen(false)}
+        className={`sidebar-overlay ${mobileDrawerOpen ? 'visible' : ''}`}
+        onClick={() => setMobileDrawerOpen(false)}
       />
 
       {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileDrawerOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">
             <Mic size={20} color="white" />
@@ -87,6 +96,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   to={item.to}
                   end={item.to === '/'}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileDrawerOpen(false)}
                 >
                   <span className="nav-icon">{item.icon}</span>
                   {item.label}
@@ -110,21 +120,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <div className="main-content">
+      <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <header className="top-bar">
           <div className="flex items-center gap-md">
             <button
               className="btn btn-ghost btn-icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{ display: 'none' }}
-              id="mobile-menu-btn"
-            >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-            <button
-              className="btn btn-ghost btn-icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{ display: 'flex' }}
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-label="Toggle navigation menu"
             >
               <Menu size={20} />
             </button>

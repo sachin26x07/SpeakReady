@@ -75,11 +75,11 @@ router.post('/parse-resume', upload.single('resume'), asyncHandler(async (req: R
 // POST /api/interview/generate-questions
 router.post('/generate-questions', asyncHandler(async (req: Request, res: Response) => {
   const schema = z.object({
-    resumeText: z.string().min(50, 'Resume text must be at least 50 characters'),
+    resumeText: z.string().trim().min(20, 'Resume text must be at least 20 characters'),
     interviewType: z.string().default('mixed'),
     difficulty: z.enum(['beginner', 'intermediate', 'advanced']).default('intermediate'),
-    count: z.number().min(1).max(15).default(5),
-    provider: z.enum(['groq', 'gemini']).default('gemini'),
+    count: z.coerce.number().min(1).max(15).default(5),
+    provider: z.string().optional().default('gemini').transform(p => (p.toLowerCase() === 'groq' ? 'groq' : 'gemini')),
   });
   const body = schema.parse(req.body);
 
@@ -100,7 +100,7 @@ router.post('/evaluate', asyncHandler(async (req: Request, res: Response) => {
     answer: z.string().min(1, 'Please provide an answer'),
     resumeContext: z.string().default(''),
     language: z.enum(['english', 'hinglish']).default('english'),
-    provider: z.enum(['groq', 'gemini']).default('gemini'),
+    provider: z.string().optional().default('gemini').transform(p => (p.toLowerCase() === 'groq' ? 'groq' : 'gemini')),
   });
   const body = schema.parse(req.body);
 

@@ -103,12 +103,28 @@ export async function callAI(
   messages: AIMessage[],
   provider: AIProvider = 'gemini'
 ): Promise<AIResponse> {
+  const fallbackProvider: AIProvider = provider === 'gemini' ? 'groq' : 'gemini';
+  const hasFallback = fallbackProvider === 'groq' ? Boolean(config.groq.apiKey) : Boolean(config.gemini.apiKey);
+
   try {
     if (provider === 'groq') {
       return await callGroq(messages);
     }
     return await callGemini(messages);
   } catch (err: any) {
+    if (hasFallback) {
+      console.warn(`[AIProvider] Provider "${provider}" failed: ${err?.message || err}. Attempting fallback to "${fallbackProvider}"...`);
+      try {
+        if (fallbackProvider === 'groq') {
+          return await callGroq(messages);
+        }
+        return await callGemini(messages);
+      } catch (fallbackErr: any) {
+        console.error(`[AIProvider] Fallback provider "${fallbackProvider}" also failed: ${fallbackErr?.message || fallbackErr}`);
+        throw new Error(`AI providers failed. Primary (${provider}): ${err?.message || err}; Fallback (${fallbackProvider}): ${fallbackErr?.message || fallbackErr}`);
+      }
+    }
+
     const errMsg = err?.message || String(err);
     throw new Error(`AI provider "${provider}" error: ${errMsg}`);
   }

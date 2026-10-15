@@ -348,20 +348,49 @@ Return ONLY valid JSON:
 // Resume-Based Interview Questions
 // ============================================================
 
-const InterviewQuestionSchema = z.object({
-  id: z.string(),
+export interface InterviewQuestion {
+  id: string;
+  question: string;
+  type: 'hr' | 'technical' | 'project' | 'behavioral' | 'cross-question';
+  resume_reference: string;
+  follow_up: string;
+  what_to_cover: string[];
+}
+
+const InterviewQuestionSchema: z.ZodType<InterviewQuestion, z.ZodTypeDef, any> = z.object({
+  id: z.string().default(() => `iq-${Math.random().toString(36).slice(2, 9)}`),
   question: z.string(),
-  type: z.enum(['hr', 'technical', 'project', 'behavioral', 'cross-question']),
-  resume_reference: z.string(),
-  follow_up: z.string(),
-  what_to_cover: z.array(z.string()),
+  type: z.string().default('technical').transform(val => {
+    const lower = (val || '').toLowerCase().trim();
+    if (['hr', 'technical', 'project', 'behavioral', 'cross-question'].includes(lower)) {
+      return lower as 'hr' | 'technical' | 'project' | 'behavioral' | 'cross-question';
+    }
+    if (lower.includes('project')) return 'project';
+    if (lower.includes('tech') || lower.includes('code') || lower.includes('skill')) return 'technical';
+    if (lower.includes('behav') || lower.includes('situation')) return 'behavioral';
+    if (lower.includes('cross')) return 'cross-question';
+    if (lower.includes('hr') || lower.includes('personal') || lower.includes('intro')) return 'hr';
+    return 'technical';
+  }),
+  resume_reference: z.any().transform(val => (typeof val === 'string' && val.trim() ? val.trim() : 'Mentioned in resume')),
+  follow_up: z.any().transform(val => (typeof val === 'string' ? val : '')),
+  what_to_cover: z.any().transform(val => {
+    if (Array.isArray(val)) return val.map(v => String(v));
+    if (typeof val === 'string' && val.trim()) return [val.trim()];
+    return [];
+  }),
 });
 
-const InterviewBatchSchema = z.object({
-  questions: z.array(InterviewQuestionSchema),
-});
-
-export type InterviewQuestion = z.infer<typeof InterviewQuestionSchema>;
+const InterviewBatchSchema: z.ZodType<{ questions: InterviewQuestion[] }, z.ZodTypeDef, any> = z.preprocess(
+  (val: any) => {
+    if (Array.isArray(val)) return { questions: val };
+    if (val && typeof val === 'object' && Array.isArray(val.questions)) return val;
+    return { questions: [] };
+  },
+  z.object({
+    questions: z.array(InterviewQuestionSchema),
+  })
+);
 
 export async function generateResumeQuestions(
   resumeText: string,
@@ -378,12 +407,14 @@ Difficulty: ${difficulty}
 
 IMPORTANT: Only ask about skills, projects, education, and experience that are ACTUALLY mentioned in the resume. Do not invent anything.
 
+For the "type" field, use one of: "technical", "project", "hr", "behavioral", "cross-question".
+
 Resume text:
 ---
 ${resumeText.slice(0, 3000)}
 ---
 
-Return ONLY valid JSON:
+Return ONLY valid JSON in this exact structure:
 {
   "questions": [
     {
@@ -405,21 +436,40 @@ Return ONLY valid JSON:
 // Evaluate Interview Answer
 // ============================================================
 
-const InterviewEvaluationSchema = z.object({
-  score: z.number().min(0).max(10),
-  feedback: z.string(),
-  strengths: z.array(z.string()),
-  missing_points: z.array(z.string()),
-  grammar_issues: z.array(z.object({
-    original: z.string(),
-    corrected: z.string(),
-    rule: z.string(),
-  })),
-  suggested_answer: z.string(),
-  follow_up_question: z.string(),
-});
+export interface InterviewEvaluation {
+  score: number;
+  feedback: string;
+  strengths: string[];
+  missing_points: string[];
+  grammar_issues: { original: string; corrected: string; rule: string }[];
+  suggested_answer: string;
+  follow_up_question: string;
+}
 
-export type InterviewEvaluation = z.infer<typeof InterviewEvaluationSchema>;
+const InterviewEvaluationSchema: z.ZodType<InterviewEvaluation, z.ZodTypeDef, any> = z.object({
+  score: z.coerce.number().min(0).max(10).default(7),
+  feedback: z.any().transform(v => (typeof v === 'string' && v.trim() ? v.trim() : 'Good response.')),
+  strengths: z.any().transform(val => {
+    if (Array.isArray(val)) return val.map(v => String(v));
+    if (typeof val === 'string' && val.trim()) return [val.trim()];
+    return [];
+  }),
+  missing_points: z.any().transform(val => {
+    if (Array.isArray(val)) return val.map(v => String(v));
+    if (typeof val === 'string' && val.trim()) return [val.trim()];
+    return [];
+  }),
+  grammar_issues: z.any().transform(val => {
+    if (!Array.isArray(val)) return [];
+    return val.map((item: any) => ({
+      original: typeof item?.original === 'string' ? item.original : '',
+      corrected: typeof item?.corrected === 'string' ? item.corrected : '',
+      rule: typeof item?.rule === 'string' ? item.rule : '',
+    }));
+  }),
+  suggested_answer: z.any().transform(v => (typeof v === 'string' ? v : '')),
+  follow_up_question: z.any().transform(v => (typeof v === 'string' ? v : '')),
+});
 
 export async function evaluateInterviewAnswer(
   question: string,

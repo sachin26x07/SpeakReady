@@ -37,28 +37,80 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
 }
 
 function WeeklyChart({ dates, minutes }: { dates: string[]; minutes: number[] }) {
-  const maxMin = Math.max(...minutes, 1);
-  const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const maxMin = Math.max(...minutes, 30);
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const todayDateString = new Date().toDateString();
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80, padding: '0 8px' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 160, padding: '10px 4px 6px' }}>
       {minutes.map((min, i) => {
         const date = new Date(dates[i]);
         const day = dayLabels[date.getDay()];
-        const height = Math.max((min / maxMin) * 60, min > 0 ? 4 : 0);
+        const isToday = date.toDateString() === todayDateString;
+        const fillPercent = Math.min(100, Math.round((min / maxMin) * 100));
+
         return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', gap: 6 }}>
+            {/* Minute indicator value */}
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: min > 0 ? 600 : 400,
+                color: min > 0 ? 'var(--color-primary-500)' : 'var(--text-muted)',
+                height: 16,
+                lineHeight: '16px',
+              }}
+            >
+              {min > 0 ? `${min}m` : '·'}
+            </span>
+
+            {/* Bar track container */}
             <div
               style={{
                 width: '100%',
-                height: height,
-                background: min > 0 ? 'var(--color-primary-400)' : 'var(--bg-surface)',
-                borderRadius: 4,
-                transition: 'height 0.5s ease',
+                flex: 1,
+                background: 'var(--bg-surface)',
+                borderRadius: 8,
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'flex-end',
+                overflow: 'hidden',
+                border: isToday ? '1px solid var(--color-primary-400)' : '1px solid transparent',
               }}
-              title={`${min} min`}
-            />
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{day}</span>
+              title={`${day}: ${min} minutes`}
+            >
+              {/* Fill bar */}
+              <div
+                style={{
+                  width: '100%',
+                  height: `${fillPercent}%`,
+                  background: isToday
+                    ? 'linear-gradient(180deg, var(--color-primary-400), var(--color-primary-600))'
+                    : min > 0
+                    ? 'linear-gradient(180deg, var(--color-primary-300), var(--color-primary-500))'
+                    : 'transparent',
+                  borderRadius: '6px 6px 0 0',
+                  transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: min > 0 ? '0 2px 8px rgba(16, 185, 129, 0.25)' : 'none',
+                }}
+              />
+            </div>
+
+            {/* Day label */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: isToday ? 700 : 500,
+                  color: isToday ? 'var(--color-primary-500)' : 'var(--text-secondary)',
+                }}
+              >
+                {day}
+              </span>
+              {isToday && (
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--color-primary-500)' }} />
+              )}
+            </div>
           </div>
         );
       })}
@@ -86,9 +138,9 @@ export default function Dashboard() {
     ? Math.round(grammarResults.slice(-20).filter(r => r.isCorrect).length / Math.min(grammarResults.length, 20) * 100)
     : 0;
 
-  const weakAreas = progress?.weakAreas
-    ?.sort((a, b) => b.errorCount - a.errorCount)
-    .slice(0, 3) || [];
+  const totalWeeklyMinutes = weeklyStats.minutes.reduce((total, m) => total + m, 0);
+  const activeDaysThisWeek = weeklyStats.minutes.filter(m => m > 0).length;
+  const avgDailyMinutes = Math.round(totalWeeklyMinutes / 7);
 
   const isNewUser = totalSessions === 0 && grammarResults.length === 0;
 
@@ -154,34 +206,62 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Weekly chart */}
-          <div className="card dashboard-week-card" style={{ flex: 1, minHeight: 190 }}>
-            <div className="card-header" style={{ marginBottom: 12 }}>
-              <div className="card-title" style={{ fontSize: 15 }}>📊 This Week</div>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {weeklyStats.minutes.reduce((total, minutes) => total + minutes, 0)} min total
+        {/* Right column: Expanded Weekly Analytics Card */}
+        <div className="card card-elevated dashboard-week-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div className="card-header" style={{ marginBottom: 16 }}>
+              <div>
+                <div className="card-title">📊 This Week</div>
+                <div className="card-subtitle">Daily practice & consistency</div>
+              </div>
+              <span className="badge badge-success" style={{ fontSize: 12 }}>
+                {totalWeeklyMinutes} min total
               </span>
             </div>
+
+            {/* Quick mini-stats strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+              <div style={{ padding: '10px 12px', background: 'var(--bg-surface)', borderRadius: 8, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Total Time</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{totalWeeklyMinutes} min</div>
+              </div>
+              <div style={{ padding: '10px 12px', background: 'var(--bg-surface)', borderRadius: 8, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Daily Avg</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{avgDailyMinutes} min</div>
+              </div>
+              <div style={{ padding: '10px 12px', background: 'var(--bg-surface)', borderRadius: 8, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Active Days</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary-600)' }}>{activeDaysThisWeek}/7 days</div>
+              </div>
+            </div>
+
+            {/* Expanded Chart */}
             <WeeklyChart dates={weeklyStats.dates} minutes={weeklyStats.minutes} />
           </div>
 
-          {/* Weak areas */}
-          {weakAreas.length > 0 && (
-            <div className="card">
-              <div className="card-title" style={{ fontSize: 15, marginBottom: 12 }}>🎯 Focus Areas</div>
-              {weakAreas.map(area => (
-                <div key={area.topic} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{area.topic}</span>
-                  <span className="badge badge-warning">{area.errorCount} errors</span>
-                </div>
-              ))}
-              <Link to="/grammar" className="btn btn-secondary btn-sm" style={{ marginTop: 8, width: '100%' }}>
-                Practice Weak Areas
-              </Link>
+          {/* Consistency footer bar */}
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ flex: 1, marginRight: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>Weekly Consistency</span>
+                <span style={{ color: 'var(--color-primary-600)', fontWeight: 700 }}>{Math.round((activeDaysThisWeek / 7) * 100)}%</span>
+              </div>
+              <div style={{ width: '100%', height: 6, background: 'var(--bg-surface)', borderRadius: 3, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${Math.round((activeDaysThisWeek / 7) * 100)}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, var(--color-primary-400), var(--color-primary-600))',
+                    borderRadius: 3,
+                    transition: 'width 0.5s ease',
+                  }}
+                />
+              </div>
             </div>
-          )}
+            <Link to="/progress" className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }}>
+              Full History <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
       </div>
     </div>
